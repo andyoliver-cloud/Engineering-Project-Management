@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CivilPM — Gestor de Proyectos</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0F1117;
+  --bg-card: #181B24;
+  --bg-card-hover: #1E222D;
+  --bg-input: #12141B;
+  --border: #2A2E3A;
+  --border-focus: #4A7CFF;
+  --text: #E8EAF0;
+  --text-dim: #8B90A0;
+  --text-muted: #5A5F72;
+  --accent: #4A7CFF;
+  --accent-hover: #3A6AEE;
+  --accent-glow: rgba(74,124,255,0.15);
+  --green: #34D399;
+  --green-bg: rgba(52,211,153,0.1);
+  --amber: #FBBF24;
+  --amber-bg: rgba(251,191,36,0.1);
+  --red: #F87171;
+  --red-bg: rgba(248,113,113,0.1);
+  --purple: #A78BFA;
+  --purple-bg: rgba(167,139,250,0.1);
+  --radius: 8px;
+  --radius-lg: 12px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --font: 'DM Sans', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── LOGIN ── */
+.login-page {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh; position: relative; overflow: hidden;
+}
+.login-page::before {
+  content: ''; position: absolute; width: 600px; height: 600px;
+  background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+  top: -200px; right: -100px; pointer-events: none;
+}
+.login-box {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 48px; width: 420px; max-width: 90vw; box-shadow: var(--shadow);
+}
+.login-box .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+.login-box .logo span { color: var(--accent); }
+.login-box .subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 32px; }
+
+.form-group { margin-bottom: 18px; }
+.form-group label {
+  display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 6px;
+}
+
+input, select, textarea {
+  font-family: var(--font); width: 100%; padding: 10px 14px;
+  background: var(--bg-input); border: 1px solid var(--border);
+  border-radius: var(--radius); color: var(--text); font-size: 14px; transition: border-color 0.2s;
+}
+input:focus, select:focus, textarea:focus {
+  outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-glow);
+}
+textarea { resize: vertical; min-height: 80px; }
+select {
+  cursor: pointer; appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238B90A0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px;
+}
+
+.btn {
+  font-family: var(--font); padding: 10px 20px; border: none; border-radius: var(--radius);
+  font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.btn-secondary { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+.btn-secondary:hover { background: var(--bg-card-hover); color: var(--text); }
+.btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
+.btn-danger:hover { background: rgba(248,113,113,0.2); }
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-block { width: 100%; justify-content: center; }
+
+.login-toggle { text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-dim); }
+.login-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.login-toggle a:hover { text-decoration: underline; }
+
+.msg-box {
+  padding: 8px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 16px; display: none;
+}
+.msg-error { background: var(--red-bg); border: 1px solid rgba(248,113,113,0.2); color: var(--red); }
+.msg-success { background: var(--green-bg); border: 1px solid rgba(52,211,153,0.2); color: var(--green); }
+
+/* ── LAYOUT ── */
+.app { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 260px; min-width: 260px; background: var(--bg-card);
+  border-right: 1px solid var(--border); display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; transition: transform 0.3s;
+}
+.sidebar-header { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-header .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.sidebar-header .logo span { color: var(--accent); }
+.sidebar-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border-radius: var(--radius); cursor: pointer; font-size: 14px;
+  font-weight: 500; color: var(--text-dim); transition: all 0.15s; margin-bottom: 2px;
+}
+.nav-item:hover { background: var(--bg-card-hover); color: var(--text); }
+.nav-item.active { background: var(--accent-glow); color: var(--accent); }
+.nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 13px; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; }
+.user-avatar {
+  width: 32px; height: 32px; border-radius: 50%; background: var(--accent-glow);
+  color: var(--accent); display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-role { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.logout-btn {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  padding: 4px; border-radius: 4px; display: flex;
+}
+.logout-btn:hover { color: var(--red); }
+
+.main { flex: 1; margin-left: 260px; padding: 32px; max-width: 1200px; }
+
+.page-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 28px; flex-wrap: wrap; gap: 12px;
+}
+.page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+.breadcrumb { font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+.breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+
+/* ── CARDS ── */
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.card {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 20px; transition: all 0.2s; cursor: pointer;
+}
+.card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
+.card-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.card-meta { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+.card-meta svg { width: 14px; height: 14px; }
+.card-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+
+.badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+.badge-blue { background: var(--accent-glow); color: var(--accent); }
+.badge-green { background: var(--green-bg); color: var(--green); }
+.badge-amber { background: var(--amber-bg); color: var(--amber); }
+.badge-red { background: var(--red-bg); color: var(--red); }
+.badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+/* ── MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px;
+}
+.modal {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 32px; width: 580px; max-width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+}
+.modal-title { font-size: 20px; font-weight: 700; margin-bottom: 24px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+/* ── CHECKLIST ── */
+.checklist { margin-bottom: 12px; }
+.checklist-title {
+  font-size: 13px; font-weight: 600; color: var(--text-dim);
+  text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;
+}
+.check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; }
+.check-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+
+/* ── TASKS ── */
+.task-item {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 16px; margin-bottom: 10px; transition: border-color 0.15s;
+}
+.task-item:hover { border-color: var(--border-focus); }
+.task-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.task-name { font-weight: 600; font-size: 14px; flex: 1; min-width: 120px; }
+.task-status {
+  font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+  cursor: pointer; border: none; font-family: var(--font);
+}
+.status-pending { background: var(--amber-bg); color: var(--amber); }
+.status-in-progress { background: var(--accent-glow); color: var(--accent); }
+.status-completed { background: var(--green-bg); color: var(--green); }
+.status-blocked { background: var(--red-bg); color: var(--red); }
+
+/* ── LAST UPDATED LABEL ── */
+.last-updated-label {
+  font-size: 11px; color: var(--text-muted); cursor: pointer; position: relative;
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
+  border-radius: 4px; transition: background 0.15s; margin-top: 6px;
+  font-family: var(--mono); white-space: nowrap;
+}
+.last-updated-label:hover { background: var(--bg-card-hover); color: var(--text-dim); }
+.last-updated-label svg { width: 12px; height: 12px; }
+
+/* ── HISTORY BALLOON ── */
+.history-balloon {
+  position: absolute; bottom: calc(100% + 8px); left: 0;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px; min-width: 320px; max-width: 420px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 500;
+  max-height: 300px; overflow-y: auto;
+}
+.history-balloon::after {
+  content: ''; position: absolute; top: 100%; left: 24px;
+  border: 8px solid transparent; border-top-color: var(--border);
+}
+.history-balloon .hb-title {
+  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--text-dim); margin-bottom: 10px;
+}
+.history-entry {
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.history-entry:last-child { border-bottom: none; }
+.history-entry .he-user { font-weight: 600; color: var(--accent); }
+.history-entry .he-action { color: var(--text-dim); }
+.history-entry .he-detail { color: var(--text); margin-top: 2px; }
+.history-entry .he-date { color: var(--text-muted); font-family: var(--mono); font-size: 10px; }
+
+/* ── NOTES ── */
+.task-notes { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+.note-item { padding: 10px 14px; background: var(--bg-input); border-radius: var(--radius); margin-bottom: 8px; font-size: 13px; }
+.note-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.note-author { font-weight: 600; color: var(--accent); font-size: 12px; }
+.note-date { color: var(--text-muted); font-size: 11px; font-family: var(--mono); }
+.note-body { color: var(--text-dim); line-height: 1.6; }
+.add-note-form { display: flex; gap: 8px; margin-top: 8px; }
+.add-note-form textarea { flex: 1; min-height: 38px; max-height: 120px; padding: 8px 12px; font-size: 13px; }
+
+/* ── DETAIL SECTION ── */
+.detail-section {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px;
+}
+.detail-row {
+  display: grid; grid-template-columns: 140px 1fr; gap: 8px;
+  padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--border);
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-label { color: var(--text-muted); font-weight: 500; }
+.section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+/* ── TABLE ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table th {
+  text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.data-table tr:hover td { background: var(--bg-card-hover); }
+
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.4; }
+.empty-state p { font-size: 14px; }
+
+.icon-btn {
+  background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer;
+  padding: 5px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { color: var(--text); background: var(--bg-card-hover); }
+.icon-btn.danger:hover { color: var(--red); border-color: rgba(248,113,113,0.3); }
+
+.hamburger { display: none; background: none; border: none; color: var(--text); cursor: pointer; padding: 8px; }
+
+@media (max-width: 768px) {
+  .hamburger { display: block; }
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; }
+  .card-grid { grid-template-columns: 1fr; }
+  .history-balloon { min-width: 260px; left: -20px; }
+}
+
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.fade-in { animation: fadeIn 0.25s ease; }
+.hidden { display: none !important; }
+
+/* ── LOADING SPINNER ── */
+.spinner {
+  display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ─── LOGIN ─── -->
+<div id="loginPage" class="login-page">
+  <div class="login-box fade-in">
+    <div class="logo">Civil<span>PM</span></div>
+    <div class="subtitle" id="loginSubtitle">Inicia sesión para gestionar tus proyectos</div>
+    <div class="msg-box msg-error" id="loginError"></div>
+    <div class="msg-box msg-success" id="loginSuccess"></div>
+
+    <div id="loginForm">
+      <div class="form-group"><label>Usuario</label><input type="text" id="loginUser" placeholder="Nombre de usuario" autocomplete="username"></div>
+      <div class="form-group"><label>Contraseña</label><input type="password" id="loginPass" placeholder="Contraseña" autocomplete="current-password"></div>
+      <button class="btn btn-primary btn-block" onclick="handleLogin()">Iniciar Sesión</button>
+      <div class="login-toggle" id="registerToggle"><span id="toggleText">¿No tienes cuenta? <a onclick="toggleRegister()">Crear una</a></span></div>
+    </div>
+
+    <div id="registerForm" class="hidden">
+      <div class="form-group"><label>Nombre Completo</label><input type="text" id="regName" placeholder="Tu nombre completo"></div>
+      <div class="form-group"><label>Usuario</label><input type="text" id="regUser" placeholder="Escoge un nombre de usuario" autocomplete="username"></div>
+      <div class="form-group"><label>Contraseña</label><input type="password" id="regPass" placeholder="Escoge una contraseña" autocomplete="new-password"></div>
+      <button class="btn btn-primary btn-block" onclick="handleRegister()">Crear Cuenta</button>
+      <div class="login-toggle">¿Ya tienes cuenta? <a onclick="toggleRegister()">Iniciar sesión</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── APP ─── -->
+<div id="appPage" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header"><div class="logo">Civil<span>PM</span></div></div>
+    <nav class="sidebar-nav">
+      <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Panel
+      </div>
+      <div class="nav-item" data-page="clients" onclick="navigate('clients')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Clientes
+      </div>
+      <div class="nav-item hidden" id="navAdmin" data-page="admin" onclick="navigate('admin')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Administración
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="user-avatar" id="userAvatar"></div>
+        <div class="user-info"><div class="user-name" id="userName"></div><div class="user-role" id="userRole"></div></div>
+        <button class="logout-btn" onclick="handleLogout()" title="Cerrar sesión">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main" id="mainContent"></main>
+</div>
+
+<div id="modalContainer"></div>
+
+<script>
+// ══════════════════════════════════════════════════
+//  API HELPER
+// ══════════════════════════════════════════════════
+async function api(url, method='GET', body=null) {
+  const opts = { method, headers: {'Content-Type':'application/json'}, credentials: 'same-origin' };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Error del servidor');
+  return data;
+}
+
+let currentUser = null;
+let currentPage = 'dashboard';
+let viewState = {};
+
+// ══════════════════════════════════════════════════
+//  AUTH
+// ══════════════════════════════════════════════════
+function showMsg(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+function toggleRegister() {
+  document.getElementById('loginForm').classList.toggle('hidden');
+  document.getElementById('registerForm').classList.toggle('hidden');
+  ['loginError','loginSuccess'].forEach(id => document.getElementById(id).style.display = 'none');
+  const isReg = !document.getElementById('registerForm').classList.contains('hidden');
+  document.getElementById('loginSubtitle').textContent = isReg
+    ? 'Crea una cuenta para comenzar' : 'Inicia sesión para gestionar tus proyectos';
+}
+
+async function handleRegister() {
+  const name = document.getElementById('regName').value.trim();
+  const username = document.getElementById('regUser').value.trim();
+  const password = document.getElementById('regPass').value;
+  if (!name || !username || !password) return showMsg('loginError', 'Todos los campos son requeridos');
+  try {
+    await api('/api/auth/register', 'POST', { name, username, password });
+    showMsg('loginSuccess', 'Cuenta creada. Ahora puedes iniciar sesión.');
+    toggleRegister();
+  } catch (e) { showMsg('loginError', e.message); }
+}
+
+async function handleLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  if (!username || !password) return showMsg('loginError', 'Ingresa usuario y contraseña');
+  try {
+    const data = await api('/api/auth/login', 'POST', { username, password });
+    currentUser = data.user;
+    showApp();
+  } catch (e) { showMsg('loginError', e.message); }
+}
+
+async function handleLogout() {
+  await api('/api/auth/logout', 'POST');
+  currentUser = null;
+  document.getElementById('appPage').classList.add('hidden');
+  document.getElementById('loginPage').classList.remove('hidden');
+}
+
+function showApp() {
+  document.getElementById('loginPage').classList.add('hidden');
+  document.getElementById('appPage').classList.remove('hidden');
+  document.getElementById('userAvatar').textContent = currentUser.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('userName').textContent = currentUser.name;
+  document.getElementById('userRole').textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuario';
+  document.getElementById('navAdmin').classList.toggle('hidden', currentUser.role !== 'admin');
+  navigate('dashboard');
+}
+
+// ══════════════════════════════════════════════════
+//  NAVIGATION
+// ══════════════════════════════════════════════════
+function navigate(page, state={}) {
+  currentPage = page;
+  viewState = state;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  document.getElementById('sidebar').classList.remove('open');
+  renderPage();
+}
+
+async function renderPage() {
+  const c = document.getElementById('mainContent');
+  const hamburger = '<button class="hamburger" onclick="document.getElementById(\'sidebar\').classList.toggle(\'open\')"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>';
+  c.innerHTML = hamburger + '<div style="text-align:center;padding:60px;"><div class="spinner"></div></div>';
+  try {
+    switch(currentPage) {
+      case 'dashboard': c.innerHTML = hamburger + await renderDashboard(); break;
+      case 'clients': c.innerHTML = hamburger + await renderClients(); break;
+      case 'client-detail': c.innerHTML = hamburger + await renderClientDetail(); break;
+      case 'project-detail': c.innerHTML = hamburger + await renderProjectDetail(); break;
+      case 'admin': c.innerHTML = hamburger + await renderAdmin(); break;
+    }
+  } catch(e) { c.innerHTML = hamburger + `<div class="empty-state"><p>Error: ${esc(e.message)}</p></div>`; }
+}
+
+// ══════════════════════════════════════════════════
+//  DASHBOARD
+// ══════════════════════════════════════════════════
+async function renderDashboard() {
+  const d = await api('/api/dashboard');
+  let notesHtml = '';
+  (d.recent_notes || []).forEach(n => {
+    notesHtml += `<div class="note-item">
+      <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
+      <div class="note-body">${esc(n.text)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(n.client_name)} → ${esc(n.task_name)}</div>
+    </div>`;
+  });
+
+  return `<div class="fade-in">
+    <div class="page-header"><div class="page-title">Panel</div></div>
+    <div class="card-grid" style="margin-bottom:28px;">
+      <div class="detail-section" style="cursor:default;">
+        <div style="font-size:32px;font-weight:700;color:var(--accent)">${d.clients}</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:4px">Clientes</div>
+      </div>
+      <div class="detail-section" style="cursor:default;">
+        <div style="font-size:32px;font-weight:700;color:var(--purple)">${d.projects}</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:4px">Proyectos</div>
+      </div>
+      <div class="detail-section" style="cursor:default;">
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div><span style="font-size:24px;font-weight:700;color:var(--green)">${d.tasks_completed}</span><div style="font-size:11px;color:var(--text-muted)">Completadas</div></div>
+          <div><span style="font-size:24px;font-weight:700;color:var(--accent)">${d.tasks_in_progress}</span><div style="font-size:11px;color:var(--text-muted)">En Progreso</div></div>
+          <div><span style="font-size:24px;font-weight:700;color:var(--amber)">${d.tasks_pending}</span><div style="font-size:11px;color:var(--text-muted)">Pendientes</div></div>
+          <div><span style="font-size:24px;font-weight:700;color:var(--red)">${d.tasks_blocked}</span><div style="font-size:11px;color:var(--text-muted)">Bloqueadas</div></div>
+        </div>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:8px">${d.tasks_total} Tareas en Total</div>
+      </div>
+    </div>
+    <div class="detail-section">
+      <div class="section-title">Actividad Reciente</div>
+      ${notesHtml || '<div class="empty-state"><p>Sin actividad aún. Crea un cliente y proyecto para comenzar.</p></div>'}
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  CLIENTS
+// ══════════════════════════════════════════════════
+async function renderClients() {
+  const clients = await api('/api/clients');
+  let cardsHtml = '';
+  clients.forEach(cl => {
+    cardsHtml += `<div class="card" onclick="navigate('client-detail',{clientId:'${cl.id}'})">
+      <div class="card-title">${esc(cl.name)}</div>
+      <div class="card-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg> ${esc(cl.phone || '—')}</div>
+      <div class="card-meta" style="margin-top:4px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg> ${esc(cl.email || '—')}</div>
+      <div class="card-badges"><span class="badge badge-purple">${cl.project_count} proyecto${cl.project_count!==1?'s':''}</span></div>
+    </div>`;
+  });
+  return `<div class="fade-in">
+    <div class="page-header"><div class="page-title">Clientes</div><button class="btn btn-primary" onclick="openClientModal()">+ Nuevo Cliente</button></div>
+    ${cardsHtml ? `<div class="card-grid">${cardsHtml}</div>` :
+    '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No hay clientes aún. Añade tu primer cliente para comenzar.</p></div>'}
+  </div>`;
+}
+
+function openClientModal(editId, editData) {
+  const cl = editData || null;
+  const title = cl ? 'Editar Cliente' : 'Nuevo Cliente';
+  showModal(`
+    <div class="modal-title">${title}</div>
+    <div class="form-group"><label>Nombre del Cliente *</label><input type="text" id="mClientName" value="${cl ? esc(cl.name) : ''}" placeholder="Ej: Juan Pérez o Corp XYZ"></div>
+    <div class="form-group"><label>Correo Electrónico</label><input type="email" id="mClientEmail" value="${cl ? esc(cl.email||'') : ''}" placeholder="email@ejemplo.com"></div>
+    <div class="form-group"><label>Teléfono</label><input type="tel" id="mClientPhone" value="${cl ? esc(cl.phone||'') : ''}" placeholder="787-555-1234"></div>
+    <div class="form-group"><label>Dirección Postal</label><textarea id="mClientAddress" placeholder="Calle, Ciudad, PR ZIP">${cl ? esc(cl.address||'') : ''}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveClient('${editId || ''}')">${cl ? 'Guardar Cambios' : 'Crear Cliente'}</button>
+    </div>
+  `);
+  document.getElementById('mClientName').focus();
+}
+
+async function saveClient(editId) {
+  const name = document.getElementById('mClientName').value.trim();
+  if (!name) return alert('El nombre del cliente es requerido');
+  const body = {
+    name,
+    email: document.getElementById('mClientEmail').value.trim(),
+    phone: document.getElementById('mClientPhone').value.trim(),
+    address: document.getElementById('mClientAddress').value.trim()
+  };
+  if (editId) { await api(`/api/clients/${editId}`, 'PUT', body); }
+  else { await api('/api/clients', 'POST', body); }
+  closeModal();
+  renderPage();
+}
+
+async function deleteClient(id) {
+  if (!confirm('¿Eliminar este cliente y TODOS sus proyectos, tareas y notas?')) return;
+  await api(`/api/clients/${id}`, 'DELETE');
+  navigate('clients');
+}
+
+// ══════════════════════════════════════════════════
+//  CLIENT DETAIL
+// ══════════════════════════════════════════════════
+async function renderClientDetail() {
+  const cl = await api(`/api/clients/${viewState.clientId}`);
+  let projHtml = '';
+  (cl.projects || []).forEach(pr => {
+    const pct = pr.task_count ? Math.round(pr.done_count / pr.task_count * 100) : 0;
+    projHtml += `<div class="card" onclick="navigate('project-detail',{projectId:'${pr.id}'})">
+      <div class="card-title">${esc(pr.name)}</div>
+      <div class="card-meta">${esc(pr.property_address || 'Sin dirección')}</div>
+      <div style="margin-top:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+          <span style="color:var(--text-dim)">${pr.done_count}/${pr.task_count} tareas</span>
+          <span style="color:var(--accent);font-weight:600">${pct}%</span>
+        </div>
+        <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
+          <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:2px;transition:width 0.3s;"></div>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  return `<div class="fade-in">
+    <div class="breadcrumb"><a onclick="navigate('clients')">Clientes</a> / ${esc(cl.name)}</div>
+    <div class="page-header">
+      <div class="page-title">${esc(cl.name)}</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="openClientModal('${cl.id}',${esc(JSON.stringify({name:cl.name,email:cl.email,phone:cl.phone,address:cl.address}))})">Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteClient('${cl.id}')">Eliminar</button>
+      </div>
+    </div>
+    <div class="detail-section" style="margin-bottom:24px;">
+      <div class="section-title">Información de Contacto</div>
+      <div class="detail-row"><div class="detail-label">Correo</div><div>${esc(cl.email || '—')}</div></div>
+      <div class="detail-row"><div class="detail-label">Teléfono</div><div>${esc(cl.phone || '—')}</div></div>
+      <div class="detail-row"><div class="detail-label">Dirección</div><div>${esc(cl.address || '—')}</div></div>
+    </div>
+    <div class="page-header">
+      <div class="section-title" style="margin:0;">Propiedades / Proyectos</div>
+      <button class="btn btn-primary btn-sm" onclick="openProjectModal('${cl.id}')">+ Nuevo Proyecto</button>
+    </div>
+    ${projHtml ? `<div class="card-grid">${projHtml}</div>` :
+    '<div class="empty-state"><p>No hay proyectos para este cliente aún.</p></div>'}
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════
+//  PROJECT CREATION
+// ══════════════════════════════════════════════════
+const PLAN_TYPES = [
+  'Planos As-Built', 'Planos Arquitectónicos', 'Planos Estructurales', 'Planos de Plomería',
+  'Planos Eléctricos', 'Planos Mecánicos', 'Planos Civil / Sitio', 'Planos de Paisajismo',
+  'Modelo 3D / Rendering', 'Levantamiento Topográfico', 'Planos de Demolición'
+];
+const PERMIT_TYPES = [
+  'OGPe – Consulta de Ubicación', 'OGPe – Permiso de Uso', 'OGPe – Permiso de Construcción',
+  'OGPe – Endoso Ambiental', 'ARPE – Evaluación Ambiental', 'ARPE – Consulta de Zona',
+  'Cuerpo de Bomberos – Endoso', 'AAA – Disponibilidad de Agua/Alcantarillado',
+  'AEE (LUMA) – Disponibilidad Eléctrica', 'DTOP – Acceso a Carretera',
+  'Junta de Planificación – Consulta', 'ICP – Evaluación Recurso Histórico',
+  'DRNA – Permiso Ambiental', 'Municipio – Patente / Permiso Municipal'
+];
+
+function openProjectModal(clientId) {
+  let plansHtml = PLAN_TYPES.map((p,i) => `<div class="check-item"><input type="checkbox" id="plan_${i}" value="${esc(p)}"><label for="plan_${i}">${esc(p)}</label></div>`).join('');
+  let permitsHtml = PERMIT_TYPES.map((p,i) => `<div class="check-item"><input type="checkbox" id="permit_${i}" value="${esc(p)}"><label for="permit_${i}">${esc(p)}</label></div>`).join('');
+
+  showModal(`
+    <div class="modal-title">Nuevo Proyecto</div>
+    <div class="form-group"><label>Nombre del Proyecto / Propiedad *</label><input type="text" id="mProjName" placeholder="Ej: Remodelación Residencial – Calle Sol 123"></div>
+    <div class="form-group"><label>Dirección de la Propiedad</label><input type="text" id="mProjAddr" placeholder="Dirección física de la propiedad"></div>
+    <div class="checklist">
+      <div class="checklist-title">¿Qué planos necesita este proyecto?</div>
+      ${plansHtml}
+      <div style="margin-top:8px;">
+        <input type="text" id="mCustomPlan" placeholder="Otro tipo de plano (Enter para añadir)" onkeydown="if(event.key==='Enter'){addCustomCheck('plans_custom','mCustomPlan');event.preventDefault();}">
+        <div id="plans_custom" style="margin-top:6px;"></div>
+      </div>
+    </div>
+    <div class="checklist" style="margin-top:16px;">
+      <div class="checklist-title">¿Qué permisos se necesitan? (Puerto Rico)</div>
+      ${permitsHtml}
+      <div style="margin-top:8px;">
+        <input type="text" id="mCustomPermit" placeholder="Otro tipo de permiso (Enter para añadir)" onkeydown="if(event.key==='Enter'){addCustomCheck('permits_custom','mCustomPermit');event.preventDefault();}">
+        <div id="permits_custom" style="margin-top:6px;"></div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveProject('${clientId}')">Crear Proyecto</button>
+    </div>
+  `);
+  document.getElementById('mProjName').focus();
+}
+
+let customCounter = 0;
+function addCustomCheck(containerId, inputId) {
+  const input = document.getElementById(inputId);
+  const val = input.value.trim();
+  if (!val) return;
+  const id = 'custom_' + (customCounter++);
+  document.getElementById(containerId).insertAdjacentHTML('beforeend',
+    `<div class="check-item"><input type="checkbox" id="${id}" value="${esc(val)}" checked><label for="${id}">${esc(val)}</label></div>`);
+  input.value = '';
+}
+
+async function saveProject(clientId) {
+  const name = document.getElementById('mProjName').value.trim();
+  if (!name) return alert('El nombre del proyecto es requerido');
+  const address = document.getElementById('mProjAddr').value.trim();
+  const modal = document.getElementById('modalContainer');
+  const tasks = [];
+  modal.querySelectorAll('.checklist').forEach(cl => {
+    const isPermit = cl.querySelector('.checklist-title')?.textContent.toLowerCase().includes('permiso');
+    cl.querySelectorAll('input[type="checkbox"]:checked').forEach(ch => {
+      tasks.push({ name: ch.value, category: isPermit ? 'permit' : 'plan' });
+    });
+  });
+  const res = await api('/api/projects', 'POST', { client_id: clientId, name, property_address: address, tasks });
+  closeModal();
+  navigate('project-detail', { projectId: res.id });
+}
+
+// ══════════════════════════════════════════════════
+//  PROJECT DETAIL
+// ══════════════════════════════════════════════════
+async function renderProjectDetail() {
+  const pr = await api(`/api/projects/${viewState.projectId}`);
+  const cl = pr.client;
+  const planTasks = (pr.tasks||[]).filter(t => t.category === 'plan');
+  const permitTasks = (pr.tasks||[]).filter(t => t.category === 'permit');
+
+  function renderSection(title, list, icon) {
+    if (!list.length) return '';
+    let html = `<div class="detail-section" style="margin-bottom:20px;">
+      <div class="section-title">${icon} ${title}</div>
+      <div class="task-list">`;
+    list.forEach(t => {
+      const notes = (t.notes || []);
+      let notesHtml = notes.map(n => `<div class="note-item">
+        <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
+        <div class="note-body">${esc(n.text)}</div>
+      </div>`).join('');
+
+      const updLabel = t.last_updated_by
+        ? `<div class="last-updated-label" onclick="toggleHistory(event, '${t.id}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            Últ. actualización: ${esc(t.last_updated_by)} · ${fmtShort(t.last_updated_at)}
+            <div class="history-balloon hidden" id="hb_${t.id}"></div>
+          </div>`
+        : '';
+
+      html += `<div class="task-item" id="task_${t.id}">
+        <div class="task-header">
+          <div class="task-name">${esc(t.name)}</div>
+          <select class="task-status status-${t.status}" onchange="changeStatus('${t.id}', this.value)">
+            <option value="pending" ${t.status==='pending'?'selected':''}>Pendiente</option>
+            <option value="in-progress" ${t.status==='in-progress'?'selected':''}>En Progreso</option>
+            <option value="completed" ${t.status==='completed'?'selected':''}>Completada</option>
+            <option value="blocked" ${t.status==='blocked'?'selected':''}>Bloqueada</option>
+          </select>
+          <button class="icon-btn danger" title="Eliminar tarea" onclick="deleteTask('${t.id}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+          </button>
+        </div>
+        ${updLabel}
+        <div class="task-notes">
+          ${notesHtml}
+          <div class="add-note-form">
+            <textarea id="note_${t.id}" placeholder="Añadir una nota…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){addNote('${t.id}');event.preventDefault();}"></textarea>
+            <button class="btn btn-primary btn-sm" onclick="addNote('${t.id}')" style="align-self:flex-end;">Añadir</button>
+          </div>
+        </div>
+      </div>`;
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  const planIcon = '<svg style="width:18px;height:18px;display:inline;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+  const permitIcon = '<svg style="width:18px;height:18px;display:inline;vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>';
+
+  return `<div class="fade-in">
+    <div class="breadcrumb"><a onclick="navigate('clients')">Clientes</a> / <a onclick="navigate('client-detail',{clientId:'${cl.id}'})">${esc(cl.name)}</a> / ${esc(pr.name)}</div>
+    <div class="page-header">
+      <div>
+        <div class="page-title">${esc(pr.name)}</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}</div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal('${pr.id}')">+ Añadir Tarea</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
+      </div>
+    </div>
+    ${renderSection('Planos', planTasks, planIcon)}
+    ${renderSection('Permisos', permitTasks, permitIcon)}
+    ${!planTasks.length && !permitTasks.length ? '<div class="empty-state"><p>Sin tareas aún. Añade tareas de planos y permisos.</p></div>' : ''}
+  </div>`;
+}
+
+async function changeStatus(taskId, newStatus) {
+  await api(`/api/tasks/${taskId}/status`, 'PUT', { status: newStatus });
+  renderPage();
+}
+
+async function addNote(taskId) {
+  const el = document.getElementById('note_' + taskId);
+  const text = el.value.trim();
+  if (!text) return;
+  await api('/api/notes', 'POST', { task_id: taskId, text });
+  renderPage();
+}
+
+async function deleteTask(taskId) {
+  if (!confirm('¿Eliminar esta tarea y sus notas?')) return;
+  await api(`/api/tasks/${taskId}`, 'DELETE');
+  renderPage();
+}
+
+async function deleteProject(projectId, clientId) {
+  if (!confirm('¿Eliminar este proyecto y todas sus tareas?')) return;
+  await api(`/api/projects/${projectId}`, 'DELETE');
+  navigate('client-detail', { clientId });
+}
+
+function openAddTaskModal(projectId) {
+  showModal(`
+    <div class="modal-title">Añadir Tarea</div>
+    <div class="form-group"><label>Nombre de la Tarea *</label><input type="text" id="mTaskName" placeholder="Ej: Planos Estructurales o Permiso OGPe"></div>
+    <div class="form-group"><label>Categoría</label>
+      <select id="mTaskCat"><option value="plan">Plano</option><option value="permit">Permiso</option></select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveNewTask('${projectId}')">Añadir Tarea</button>
+    </div>
+  `);
+  document.getElementById('mTaskName').focus();
+}
+
+async function saveNewTask(projectId) {
+  const name = document.getElementById('mTaskName').value.trim();
+  const category = document.getElementById('mTaskCat').value;
+  if (!name) return alert('El nombre de la tarea es requerido');
+  await api('/api/tasks', 'POST', { project_id: projectId, name, category });
+  closeModal();
+  renderPage();
+}
+
+// ══════════════════════════════════════════════════
+//  HISTORY BALLOON
+// ══════════════════════════════════════════════════
+async function toggleHistory(event, taskId) {
+  event.stopPropagation();
+  const balloon = document.getElementById('hb_' + taskId);
+  if (!balloon) return;
+
+  // Close all other balloons
+  document.querySelectorAll('.history-balloon').forEach(b => { if(b.id !== 'hb_'+taskId) b.classList.add('hidden'); });
+
+  if (!balloon.classList.contains('hidden')) {
+    balloon.classList.add('hidden');
+    return;
+  }
+
+  balloon.innerHTML = '<div style="text-align:center;padding:12px;"><div class="spinner"></div></div>';
+  balloon.classList.remove('hidden');
+
+  try {
+    const history = await api(`/api/tasks/${taskId}/history`);
+    if (!history.length) {
+      balloon.innerHTML = '<div class="hb-title">Historial de Cambios</div><div style="font-size:12px;color:var(--text-muted);padding:8px 0;">Sin historial aún.</div>';
+      return;
+    }
+    let html = '<div class="hb-title">Historial de Cambios</div>';
+    history.forEach(h => {
+      html += `<div class="history-entry">
+        <span class="he-user">${esc(h.user_name)}</span> <span class="he-action">${esc(h.action)}</span>
+        ${h.detail ? `<div class="he-detail">${esc(h.detail)}</div>` : ''}
+        <div class="he-date">${fmtDate(h.created_at)}</div>
+      </div>`;
+    });
+    balloon.innerHTML = html;
+  } catch(e) {
+    balloon.innerHTML = '<div style="color:var(--red);font-size:12px;padding:8px;">Error cargando historial</div>';
+  }
+}
+
+// Close balloons on outside click
+document.addEventListener('click', () => {
+  document.querySelectorAll('.history-balloon').forEach(b => b.classList.add('hidden'));
+});
+
+// ══════════════════════════════════════════════════
+//  ADMIN
+// ══════════════════════════════════════════════════
+async function renderAdmin() {
+  if (currentUser.role !== 'admin') return '<div class="empty-state"><p>Se requiere acceso de administrador.</p></div>';
+  const users = await api('/api/admin/users');
+  let rows = users.map(u => `<tr>
+    <td>${esc(u.name)}</td>
+    <td style="font-family:var(--mono);font-size:13px;">${esc(u.username)}</td>
+    <td><span class="badge ${u.role==='admin'?'badge-amber':'badge-blue'}">${u.role==='admin'?'Administrador':'Usuario'}</span></td>
+    <td style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">${fmtDate(u.created_at)}</td>
+    <td>${u.id !== currentUser.id ? `<button class="btn btn-secondary btn-sm" onclick="resetPassword('${u.id}','${esc(u.name)}')">Resetear Contraseña</button>` : '<span style="color:var(--text-muted);font-size:12px">Tú</span>'}</td>
+  </tr>`).join('');
+
+  return `<div class="fade-in">
+    <div class="page-header"><div class="page-title">Administración de Usuarios</div></div>
+    <div class="detail-section">
+      <table class="data-table">
+        <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Creado</th><th>Acciones</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+async function resetPassword(userId, userName) {
+  const newPass = prompt(`Nueva contraseña para ${userName}:`);
+  if (!newPass || newPass.length < 3) return alert('La contraseña debe tener al menos 3 caracteres');
+  await api('/api/admin/reset-password', 'POST', { user_id: userId, new_password: newPass });
+  alert('Contraseña reseteada para ' + userName);
+}
+
+// ══════════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════════
+function showModal(html) {
+  document.getElementById('modalContainer').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal fade-in">${html}</div></div>`;
+}
+function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
+
+// ══════════════════════════════════════════════════
+//  UTILS
+// ══════════════════════════════════════════════════
+function esc(str) { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; }
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-PR', {month:'short',day:'numeric',year:'numeric'}) + ' ' + d.toLocaleTimeString('es-PR', {hour:'2-digit',minute:'2-digit'});
+}
+function fmtShort(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('es-PR', {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('es-PR', {hour:'2-digit',minute:'2-digit'});
+}
+
+// ══════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════
+(async function init() {
+  try {
+    const status = await api('/api/auth/status');
+    if (!status.has_users) {
+      toggleRegister();
+      document.getElementById('loginSubtitle').textContent = 'Crea la cuenta de administrador para comenzar';
+      document.getElementById('registerToggle').classList.add('hidden');
+    }
+    if (status.logged_in) {
+      currentUser = status.user;
+      showApp();
+    }
+  } catch(e) {
+    document.getElementById('loginSubtitle').textContent = 'Error conectando al servidor';
+  }
+
+  document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });
+  document.getElementById('loginUser').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });
+})();
+</script>
+</body>
+</html>
