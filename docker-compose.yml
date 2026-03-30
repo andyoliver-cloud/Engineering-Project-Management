@@ -1,0 +1,11 @@
+version: "3.8"
+
+services:
+  civilpm:
+    build: .
+    container_name: civilpm
+    ports:
+      - "5100:5100"
+    volumes:
+      - .:/app
+    restart: always

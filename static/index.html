@@ -35,7 +35,8 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; font-size: 32px; }
+.version-tag { font-size: 0.4em; color: #fff; font-weight: 400; margin-left: 8px; opacity: 0.85; vertical-align: middle; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -313,7 +314,7 @@ select {
 <!-- ─── LOGIN ─── -->
 <div id="loginPage" class="login-page">
   <div class="login-box fade-in">
-    <div class="logo">Civil<span>PM</span></div>
+    <div class="logo">Civil<span>PM</span><span class="version-tag" id="versionLogin"></span></div>
     <div class="subtitle" id="loginSubtitle">Inicia sesión para gestionar tus proyectos</div>
     <div class="msg-box msg-error" id="loginError"></div>
     <div class="msg-box msg-success" id="loginSuccess"></div>
@@ -338,7 +339,7 @@ select {
 <!-- ─── APP ─── -->
 <div id="appPage" class="app hidden">
   <aside class="sidebar" id="sidebar">
-    <div class="sidebar-header"><div class="logo">Civil<span>PM</span></div></div>
+    <div class="sidebar-header"><div class="logo">Civil<span>PM</span><span class="version-tag" id="versionSidebar"></span></div></div>
     <nav class="sidebar-nav">
       <div class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -938,6 +939,16 @@ function fmtShort(iso) {
   } catch(e) {
     document.getElementById('loginSubtitle').textContent = 'Error conectando al servidor';
   }
+
+  // Fetch and display version
+  try {
+    const ver = await api('/api/version');
+    const vTag = 'v' + ver.version;
+    const vLogin = document.getElementById('versionLogin');
+    const vSidebar = document.getElementById('versionSidebar');
+    if (vLogin) vLogin.textContent = vTag;
+    if (vSidebar) vSidebar.textContent = vTag;
+  } catch(e) {}
 
   document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });
   document.getElementById('loginUser').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });

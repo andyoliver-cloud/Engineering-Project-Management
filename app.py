@@ -10,6 +10,8 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
+APP_VERSION = "0.1.1"
+
 import os
 import sqlite3
 import hashlib
@@ -164,6 +166,10 @@ def admin_required(f):
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
+
+@app.route('/api/version', methods=['GET'])
+def get_version():
+    return jsonify({'version': APP_VERSION})
 
 # ──────────────────────────────────────────────────
 #  AUTH ROUTES
@@ -478,4 +484,4 @@ if __name__ == '__main__':
     print("║   usando la IP de este equipo, puerto 5100    ║")
     print("║                                               ║")
     print("╚══════════════════════════════════════════════╝\n")
-    app.run(host='0.0.0.0', port=5100, debug=False)
+    app.run(host='0.0.0.0', port=5100, debug=True, use_reloader=True)
