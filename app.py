@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.1"
+APP_VERSION = "0.1.2"
 
 import os
 import sqlite3

@@ -36,7 +36,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; font-size: 32px; }
-.version-tag { font-size: 0.4em; color: #fff; font-weight: 400; margin-left: 8px; opacity: 0.85; vertical-align: middle; }
+.version-tag { font-size: 0.5em; color: #fff; font-weight: 400; margin-left: 8px; opacity: 0.85; vertical-align: middle; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -168,6 +168,32 @@ select {
 .badge-amber { background: var(--amber-bg); color: var(--amber); }
 .badge-red { background: var(--red-bg); color: var(--red); }
 .badge-purple { background: var(--purple-bg); color: var(--purple); }
+
+/* ── CLIENTS LAYOUT ── */
+.clients-wrapper { display: flex; gap: 16px; }
+.clients-main { flex: 1; min-width: 0; }
+.letter-picker {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 4px; background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); position: sticky; top: 32px; align-self: flex-start;
+}
+.letter-picker span {
+  padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  font-weight: 600; color: var(--text-dim); transition: all 0.15s; user-select: none;
+}
+.letter-picker span:hover { color: var(--accent); background: var(--accent-glow); }
+.letter-picker span.active { color: var(--accent); background: var(--accent-glow); }
+.search-bar {
+  width: 100%; padding: 10px 14px 10px 40px; background: var(--bg-input);
+  border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
+  font-size: 14px; font-family: var(--font); transition: border-color 0.2s; margin-bottom: 16px;
+}
+.search-bar:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-glow); }
+.search-bar-wrapper { position: relative; }
+.search-bar-wrapper svg {
+  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+  width: 18px; height: 18px; color: var(--text-muted); pointer-events: none;
+}
 
 /* ── MODAL ── */
 .modal-overlay {
@@ -516,10 +542,21 @@ async function renderDashboard() {
 // ══════════════════════════════════════════════════
 //  CLIENTS
 // ══════════════════════════════════════════════════
-async function renderClients() {
-  const clients = await api('/api/clients');
+let _clientsCache = [];
+let _clientsFilter = '';
+let _clientsLetter = '';
+
+function buildClientCards(clients) {
+  let filtered = clients;
+  if (_clientsFilter) {
+    const q = _clientsFilter.toLowerCase();
+    filtered = filtered.filter(cl => cl.name.toLowerCase().includes(q) || (cl.email||'').toLowerCase().includes(q) || (cl.phone||'').includes(q));
+  }
+  if (_clientsLetter) {
+    filtered = filtered.filter(cl => cl.name.charAt(0).toUpperCase() === _clientsLetter);
+  }
   let cardsHtml = '';
-  clients.forEach(cl => {
+  filtered.forEach(cl => {
     cardsHtml += `<div class="card" onclick="navigate('client-detail',{clientId:'${cl.id}'})">
       <div class="card-title">${esc(cl.name)}</div>
       <div class="card-meta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z"/></svg> ${esc(cl.phone || '—')}</div>
@@ -527,15 +564,51 @@ async function renderClients() {
       <div class="card-badges"><span class="badge badge-purple">${cl.project_count} proyecto${cl.project_count!==1?'s':''}</span></div>
     </div>`;
   });
+  return cardsHtml;
+}
+
+function filterClients() {
+  _clientsFilter = document.getElementById('clientSearch').value;
+  const grid = document.getElementById('clientGrid');
+  const cards = buildClientCards(_clientsCache);
+  grid.innerHTML = cards || '<div class="empty-state"><p>No se encontraron clientes.</p></div>';
+}
+
+function filterByLetter(letter, el) {
+  _clientsLetter = (_clientsLetter === letter) ? '' : letter;
+  _clientsFilter = document.getElementById('clientSearch').value;
+  document.querySelectorAll('.letter-picker span').forEach(s => s.classList.remove('active'));
+  if (_clientsLetter && el) el.classList.add('active');
+  const grid = document.getElementById('clientGrid');
+  const cards = buildClientCards(_clientsCache);
+  grid.innerHTML = cards || '<div class="empty-state"><p>No se encontraron clientes con esa letra.</p></div>';
+}
+
+async function renderClients() {
+  _clientsFilter = '';
+  _clientsLetter = '';
+  const clients = await api('/api/clients');
+  _clientsCache = clients;
+  const cardsHtml = buildClientCards(clients);
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const letterHtml = letters.map(l => `<span onclick="filterByLetter('${l}',this)">${l}</span>`).join('');
   return `<div class="fade-in">
     <div class="page-header"><div class="page-title">Clientes</div><button class="btn btn-primary" onclick="openClientModal()">+ Nuevo Cliente</button></div>
-    ${cardsHtml ? `<div class="card-grid">${cardsHtml}</div>` :
-    '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No hay clientes aún. Añade tu primer cliente para comenzar.</p></div>'}
+    <div class="search-bar-wrapper">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" class="search-bar" id="clientSearch" placeholder="Buscar cliente por nombre, correo o teléfono..." oninput="filterClients()">
+    </div>
+    <div class="clients-wrapper">
+      <div class="clients-main">
+        <div class="card-grid" id="clientGrid">${cardsHtml || '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/></svg><p>No hay clientes aún. Añade tu primer cliente para comenzar.</p></div>'}</div>
+      </div>
+      <div class="letter-picker">${letterHtml}</div>
+    </div>
   </div>`;
 }
 
-function openClientModal(editId, editData) {
-  const cl = editData || null;
+function openClientModal(editId) {
+  const cl = editId ? (_clientDetailCache || _clientsCache.find(c => c.id === editId) || null) : null;
   const title = cl ? 'Editar Cliente' : 'Nuevo Cliente';
   showModal(`
     <div class="modal-title">${title}</div>
@@ -575,8 +648,10 @@ async function deleteClient(id) {
 // ══════════════════════════════════════════════════
 //  CLIENT DETAIL
 // ══════════════════════════════════════════════════
+let _clientDetailCache = null;
 async function renderClientDetail() {
   const cl = await api(`/api/clients/${viewState.clientId}`);
+  _clientDetailCache = cl;
   let projHtml = '';
   (cl.projects || []).forEach(pr => {
     const pct = pr.task_count ? Math.round(pr.done_count / pr.task_count * 100) : 0;
@@ -600,7 +675,7 @@ async function renderClientDetail() {
     <div class="page-header">
       <div class="page-title">${esc(cl.name)}</div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-secondary btn-sm" onclick="openClientModal('${cl.id}',${esc(JSON.stringify({name:cl.name,email:cl.email,phone:cl.phone,address:cl.address}))})">Editar</button>
+        <button class="btn btn-secondary btn-sm" onclick="openClientModal('${cl.id}')">Editar</button>
         <button class="btn btn-danger btn-sm" onclick="deleteClient('${cl.id}')">Eliminar</button>
       </div>
     </div>
