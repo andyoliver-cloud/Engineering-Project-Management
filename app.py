@@ -447,12 +447,16 @@ def reorder_task(tid):
     siblings = rows_to_list(db.execute(
         "SELECT id, sort_order FROM tasks WHERE project_id=? AND category=? ORDER BY sort_order, created_at",
         (task['project_id'], task['category'])).fetchall())
+    # Normalize sort_order to sequential indices first
+    for i, s in enumerate(siblings):
+        db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (i, s['id']))
     idx = next((i for i, s in enumerate(siblings) if s['id'] == tid), -1)
     swap_idx = idx - 1 if direction == 'up' else idx + 1
     if swap_idx < 0 or swap_idx >= len(siblings):
+        db.commit()
         return jsonify({'ok': True})
-    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (siblings[swap_idx]['sort_order'], tid))
-    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (siblings[idx]['sort_order'], siblings[swap_idx]['id']))
+    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (swap_idx, tid))
+    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (idx, siblings[swap_idx]['id']))
     db.commit()
     return jsonify({'ok': True})
 
