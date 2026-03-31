@@ -542,7 +542,7 @@ async function renderDashboard() {
     notesHtml += `<div class="note-item">
       <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
       <div class="note-body">${esc(n.text)}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(n.client_name)} → ${esc(n.task_name)}</div>
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(n.project_name)} → ${esc(n.task_name)}</div>
     </div>`;
   });
 
@@ -889,6 +889,7 @@ async function renderProjectDetail() {
         <div style="font-size:13px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}</div>
       </div>
       <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-sm" onclick="openEditProjectModal('${pr.id}',${JSON.stringify(esc(pr.name))},${JSON.stringify(esc(pr.property_address||''))})">Editar Proyecto</button>
         <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal('${pr.id}')">+ Añadir Tarea</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
       </div>
@@ -917,6 +918,23 @@ async function deleteTask(taskId) {
   if (!confirm('¿Eliminar esta tarea y sus notas?')) return;
   await api(`/api/tasks/${taskId}`, 'DELETE');
   renderPage();
+}
+
+function openEditProjectModal(projectId, currentName, currentAddress) {
+  showModal('Editar Proyecto', `
+    <div class="form-group"><label>Nombre del Proyecto</label><input id="edit-proj-name" class="form-control" value="${currentName}"></div>
+    <div class="form-group"><label>Dirección</label><input id="edit-proj-addr" class="form-control" value="${currentAddress}"></div>
+    <button class="btn btn-primary" onclick="saveProjectEdit('${projectId}')">Guardar Cambios</button>
+  `);
+}
+
+async function saveProjectEdit(projectId) {
+  const name = document.getElementById('edit-proj-name').value.trim();
+  const address = document.getElementById('edit-proj-addr').value.trim();
+  if (!name) return alert('El nombre es requerido');
+  await api(`/api/projects/${projectId}`, 'PUT', { name, property_address: address });
+  closeModal();
+  navigate('project-detail', { projectId });
 }
 
 async function deleteProject(projectId, clientId) {

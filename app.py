@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.3"
+APP_VERSION = "0.1.4"
 
 import os
 import sqlite3
@@ -351,6 +351,19 @@ def get_project(pid):
     """, (pid,)).fetchall())
     return jsonify(pr)
 
+@app.route('/api/projects/<pid>', methods=['PUT'])
+@login_required
+def update_project(pid):
+    data = request.json
+    name = (data.get('name') or '').strip()
+    if not name:
+        return jsonify({'error': 'Nombre es requerido'}), 400
+    db = get_db()
+    db.execute("UPDATE projects SET name=?, property_address=? WHERE id=?",
+               (name, (data.get('property_address') or '').strip(), pid))
+    db.commit()
+    return jsonify({'ok': True})
+
 @app.route('/api/projects/<pid>', methods=['DELETE'])
 @login_required
 def delete_project(pid):
@@ -539,7 +552,7 @@ def dashboard():
         JOIN tasks t ON n.task_id = t.id
         JOIN projects p ON t.project_id = p.id
         JOIN clients c ON p.client_id = c.id
-        ORDER BY n.created_at DESC LIMIT 8
+        ORDER BY n.created_at DESC LIMIT 10
     """).fetchall())
     stats['recent_notes'] = recent
     return jsonify(stats)
