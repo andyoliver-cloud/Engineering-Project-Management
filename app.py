@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.2"
+APP_VERSION = "0.1.3"
 
 import os
 import sqlite3
@@ -84,6 +84,9 @@ def init_db():
             name TEXT NOT NULL,
             category TEXT NOT NULL DEFAULT 'plan',
             status TEXT NOT NULL DEFAULT 'pending',
+            billing_amount INTEGER DEFAULT 0,
+            billing_status TEXT NOT NULL DEFAULT 'none',
+            sort_order INTEGER DEFAULT 0,
             last_updated_by TEXT DEFAULT '',
             last_updated_at TEXT DEFAULT '',
             created_at TEXT NOT NULL,
@@ -109,6 +112,14 @@ def init_db():
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
     """)
+    # Migrations for existing databases
+    cols = [r[1] for r in db.execute("PRAGMA table_info(tasks)").fetchall()]
+    if 'billing_amount' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_amount INTEGER DEFAULT 0")
+    if 'billing_status' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_status TEXT NOT NULL DEFAULT 'none'")
+    if 'sort_order' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
     db.commit()
     db.close()
 
@@ -312,10 +323,10 @@ def create_project():
 
     # Create tasks from selected items
     tasks = data.get('tasks', [])
-    for t in tasks:
+    for i, t in enumerate(tasks):
         tid = gen_id()
-        db.execute("INSERT INTO tasks (id, project_id, name, category, status, created_at) VALUES (?,?,?,?,?,?)",
-                   (tid, pid, t['name'], t.get('category', 'plan'), 'pending', now_iso()))
+        db.execute("INSERT INTO tasks (id, project_id, name, category, status, sort_order, created_at) VALUES (?,?,?,?,?,?,?)",
+                   (tid, pid, t['name'], t.get('category', 'plan'), 'pending', i, now_iso()))
     db.commit()
     return jsonify({'ok': True, 'id': pid})
 
@@ -328,9 +339,16 @@ def get_project(pid):
         return jsonify({'error': 'Proyecto no encontrado'}), 404
     cl = row_to_dict(db.execute("SELECT id, name FROM clients WHERE id=?", (pr['client_id'],)).fetchone())
     pr['client'] = cl
-    pr['tasks'] = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, created_at", (pid,)).fetchall())
+    pr['tasks'] = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, sort_order, created_at", (pid,)).fetchall())
     for t in pr['tasks']:
         t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC", (t['id'],)).fetchall())
+    # Project-level activity log
+    pr['log'] = rows_to_list(db.execute("""
+        SELECT h.*, t.name as task_name FROM task_history h
+        JOIN tasks t ON h.task_id = t.id
+        WHERE t.project_id=?
+        ORDER BY h.created_at DESC LIMIT 50
+    """, (pid,)).fetchall())
     return jsonify(pr)
 
 @app.route('/api/projects/<pid>', methods=['DELETE'])
@@ -356,8 +374,9 @@ def create_task():
         return jsonify({'error': 'Nombre y proyecto son requeridos'}), 400
     tid = gen_id()
     db = get_db()
-    db.execute("INSERT INTO tasks (id, project_id, name, category, status, created_at) VALUES (?,?,?,?,?,?)",
-               (tid, project_id, name, category, 'pending', now_iso()))
+    max_order = db.execute("SELECT COALESCE(MAX(sort_order),0) FROM tasks WHERE project_id=? AND category=?", (project_id, category)).fetchone()[0]
+    db.execute("INSERT INTO tasks (id, project_id, name, category, status, sort_order, created_at) VALUES (?,?,?,?,?,?,?)",
+               (tid, project_id, name, category, 'pending', max_order + 1, now_iso()))
     db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
                (gen_id(), tid, g.user['name'], 'creó tarea', name, now_iso()))
     db.commit()
@@ -393,6 +412,57 @@ def get_task_history(tid):
     db = get_db()
     history = rows_to_list(db.execute("SELECT * FROM task_history WHERE task_id=? ORDER BY created_at DESC", (tid,)).fetchall())
     return jsonify(history)
+
+@app.route('/api/tasks/<tid>/billing', methods=['PUT'])
+@login_required
+def update_task_billing(tid):
+    data = request.json
+    db = get_db()
+    old = row_to_dict(db.execute("SELECT billing_amount, billing_status FROM tasks WHERE id=?", (tid,)).fetchone())
+    new_amount = int(data.get('billing_amount', 0))
+    new_status = data.get('billing_status', 'none')
+    db.execute("UPDATE tasks SET billing_amount=?, billing_status=?, last_updated_by=?, last_updated_at=? WHERE id=?",
+               (new_amount, new_status, g.user['name'], now_iso(), tid))
+    billing_labels = {'none':'No Facturado','invoiced':'Facturado-Esperando Pago','paid':'Pagado'}
+    details = []
+    if old and old['billing_amount'] != new_amount:
+        details.append(f"monto ${old['billing_amount']:,} → ${new_amount:,}")
+    if old and old['billing_status'] != new_status:
+        details.append(f"{billing_labels.get(old['billing_status'],'?')} → {billing_labels.get(new_status,'?')}")
+    if details:
+        db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
+                   (gen_id(), tid, g.user['name'], 'cambió facturación', ', '.join(details), now_iso()))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/tasks/<tid>/reorder', methods=['PUT'])
+@login_required
+def reorder_task(tid):
+    data = request.json
+    direction = data.get('direction')  # 'up' or 'down'
+    db = get_db()
+    task = row_to_dict(db.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone())
+    if not task:
+        return jsonify({'error': 'Tarea no encontrada'}), 404
+    siblings = rows_to_list(db.execute(
+        "SELECT id, sort_order FROM tasks WHERE project_id=? AND category=? ORDER BY sort_order, created_at",
+        (task['project_id'], task['category'])).fetchall())
+    idx = next((i for i, s in enumerate(siblings) if s['id'] == tid), -1)
+    swap_idx = idx - 1 if direction == 'up' else idx + 1
+    if swap_idx < 0 or swap_idx >= len(siblings):
+        return jsonify({'ok': True})
+    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (siblings[swap_idx]['sort_order'], tid))
+    db.execute("UPDATE tasks SET sort_order=? WHERE id=?", (siblings[idx]['sort_order'], siblings[swap_idx]['id']))
+    db.commit()
+    return jsonify({'ok': True})
+
+@app.route('/api/history/<hid>', methods=['DELETE'])
+@admin_required
+def delete_history_entry(hid):
+    db = get_db()
+    db.execute("DELETE FROM task_history WHERE id=?", (hid,))
+    db.commit()
+    return jsonify({'ok': True})
 
 # ──────────────────────────────────────────────────
 #  NOTES
