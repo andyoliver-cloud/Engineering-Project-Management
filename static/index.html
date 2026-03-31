@@ -7,29 +7,35 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #0F1117;
-  --bg-card: #181B24;
-  --bg-card-hover: #1E222D;
-  --bg-input: #12141B;
-  --border: #2A2E3A;
-  --border-focus: #4A7CFF;
-  --text: #E8EAF0;
-  --text-dim: #8B90A0;
-  --text-muted: #5A5F72;
-  --accent: #4A7CFF;
-  --accent-hover: #3A6AEE;
-  --accent-glow: rgba(74,124,255,0.15);
-  --green: #34D399;
-  --green-bg: rgba(52,211,153,0.1);
-  --amber: #FBBF24;
-  --amber-bg: rgba(251,191,36,0.1);
+  --bg: #1A1D27;
+  --bg-card: #232736;
+  --bg-card-hover: #2B3042;
+  --bg-input: #1E2130;
+  --border: #363B4D;
+  --border-focus: #5A8AFF;
+  --text: #EDF0F7;
+  --text-dim: #9DA2B4;
+  --text-muted: #6E7489;
+  --accent: #5A8AFF;
+  --accent-hover: #4A78EE;
+  --accent-glow: rgba(90,138,255,0.18);
+  --green: #3EDBA6;
+  --green-bg: rgba(62,219,166,0.12);
+  --amber: #FCC73E;
+  --amber-bg: rgba(252,199,62,0.12);
   --red: #F87171;
-  --red-bg: rgba(248,113,113,0.1);
-  --purple: #A78BFA;
-  --purple-bg: rgba(167,139,250,0.1);
+  --red-bg: rgba(248,113,113,0.12);
+  --purple: #B49EFF;
+  --purple-bg: rgba(180,158,255,0.12);
+  --plan-accent: #5A8AFF;
+  --plan-bg: rgba(90,138,255,0.08);
+  --plan-border: rgba(90,138,255,0.25);
+  --permit-accent: #E8A838;
+  --permit-bg: rgba(232,168,56,0.08);
+  --permit-border: rgba(232,168,56,0.25);
   --radius: 8px;
   --radius-lg: 12px;
-  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --shadow: 0 4px 24px rgba(0,0,0,0.25);
   --font: 'DM Sans', sans-serif;
   --mono: 'JetBrains Mono', monospace;
 }
@@ -55,20 +61,20 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   background: var(--bg-card); border: 1px solid var(--border);
   border-radius: var(--radius-lg); padding: 48px; width: 420px; max-width: 90vw; box-shadow: var(--shadow);
 }
-.login-box .logo { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
+.login-box .logo { font-size: 30px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 4px; }
 .login-box .logo span { color: var(--accent); }
-.login-box .subtitle { color: var(--text-dim); font-size: 14px; margin-bottom: 32px; }
+.login-box .subtitle { color: var(--text-dim); font-size: 16px; margin-bottom: 32px; }
 
 .form-group { margin-bottom: 18px; }
 .form-group label {
-  display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+  display: block; font-size: 14px; font-weight: 600; text-transform: uppercase;
   letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 6px;
 }
 
 input, select, textarea {
   font-family: var(--font); width: 100%; padding: 10px 14px;
   background: var(--bg-input); border: 1px solid var(--border);
-  border-radius: var(--radius); color: var(--text); font-size: 14px; transition: border-color 0.2s;
+  border-radius: var(--radius); color: var(--text); font-size: 16px; transition: border-color 0.2s;
 }
 input:focus, select:focus, textarea:focus {
   outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-glow);
@@ -82,7 +88,7 @@ select {
 
 .btn {
   font-family: var(--font); padding: 10px 20px; border: none; border-radius: var(--radius);
-  font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.15s;
   display: inline-flex; align-items: center; gap: 8px;
 }
 .btn-primary { background: var(--accent); color: #fff; }
@@ -91,15 +97,15 @@ select {
 .btn-secondary:hover { background: var(--bg-card-hover); color: var(--text); }
 .btn-danger { background: var(--red-bg); color: var(--red); border: 1px solid rgba(248,113,113,0.2); }
 .btn-danger:hover { background: rgba(248,113,113,0.2); }
-.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-sm { padding: 6px 12px; font-size: 14px; }
 .btn-block { width: 100%; justify-content: center; }
 
-.login-toggle { text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-dim); }
+.login-toggle { text-align: center; margin-top: 20px; font-size: 15px; color: var(--text-dim); }
 .login-toggle a { color: var(--accent); cursor: pointer; text-decoration: none; }
 .login-toggle a:hover { text-decoration: underline; }
 
 .msg-box {
-  padding: 8px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 16px; display: none;
+  padding: 8px 14px; border-radius: var(--radius); font-size: 15px; margin-bottom: 16px; display: none;
 }
 .msg-error { background: var(--red-bg); border: 1px solid rgba(248,113,113,0.2); color: var(--red); }
 .msg-success { background: var(--green-bg); border: 1px solid rgba(52,211,153,0.2); color: var(--green); }
@@ -112,27 +118,27 @@ select {
   position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; transition: transform 0.3s;
 }
 .sidebar-header { padding: 24px 20px 20px; border-bottom: 1px solid var(--border); }
-.sidebar-header .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+.sidebar-header .logo { font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
 .sidebar-header .logo span { color: var(--accent); }
 .sidebar-nav { flex: 1; padding: 12px 10px; overflow-y: auto; }
 .nav-item {
   display: flex; align-items: center; gap: 10px; padding: 10px 14px;
-  border-radius: var(--radius); cursor: pointer; font-size: 14px;
+  border-radius: var(--radius); cursor: pointer; font-size: 16px;
   font-weight: 500; color: var(--text-dim); transition: all 0.15s; margin-bottom: 2px;
 }
 .nav-item:hover { background: var(--bg-card-hover); color: var(--text); }
 .nav-item.active { background: var(--accent-glow); color: var(--accent); }
 .nav-item svg { width: 18px; height: 18px; flex-shrink: 0; }
-.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 13px; }
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); font-size: 15px; }
 .sidebar-user { display: flex; align-items: center; gap: 10px; }
 .user-avatar {
   width: 32px; height: 32px; border-radius: 50%; background: var(--accent-glow);
   color: var(--accent); display: flex; align-items: center; justify-content: center;
-  font-weight: 700; font-size: 13px; flex-shrink: 0;
+  font-weight: 700; font-size: 15px; flex-shrink: 0;
 }
 .user-info { flex: 1; min-width: 0; }
 .user-name { font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-role { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.user-role { font-size: 13px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 .logout-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
   padding: 4px; border-radius: 4px; display: flex;
@@ -145,8 +151,8 @@ select {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 28px; flex-wrap: wrap; gap: 12px;
 }
-.page-title { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
-.breadcrumb { font-size: 13px; color: var(--text-dim); margin-bottom: 4px; }
+.page-title { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+.breadcrumb { font-size: 15px; color: var(--text-dim); margin-bottom: 4px; }
 .breadcrumb a { color: var(--accent); cursor: pointer; text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; }
 
@@ -157,12 +163,12 @@ select {
   padding: 20px; transition: all 0.2s; cursor: pointer;
 }
 .card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.2); }
-.card-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-.card-meta { font-size: 13px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+.card-title { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+.card-meta { font-size: 15px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
 .card-meta svg { width: 14px; height: 14px; }
 .card-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 
-.badge { padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+.badge { padding: 3px 10px; border-radius: 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.3px; }
 .badge-blue { background: var(--accent-glow); color: var(--accent); }
 .badge-green { background: var(--green-bg); color: var(--green); }
 .badge-amber { background: var(--amber-bg); color: var(--amber); }
@@ -178,7 +184,7 @@ select {
   border-radius: var(--radius-lg); position: sticky; top: 32px; align-self: flex-start;
 }
 .letter-picker span {
-  padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 13px;
+  padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 15px;
   font-weight: 600; color: var(--text-dim); transition: all 0.15s; user-select: none;
 }
 .letter-picker span:hover { color: var(--accent); background: var(--accent-glow); }
@@ -186,7 +192,7 @@ select {
 .search-bar {
   width: 100%; padding: 10px 14px 10px 40px; background: var(--bg-input);
   border: 1px solid var(--border); border-radius: var(--radius); color: var(--text);
-  font-size: 14px; font-family: var(--font); transition: border-color 0.2s; margin-bottom: 16px;
+  font-size: 16px; font-family: var(--font); transition: border-color 0.2s; margin-bottom: 16px;
 }
 .search-bar:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-glow); }
 .search-bar-wrapper { position: relative; }
@@ -204,16 +210,16 @@ select {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg);
   padding: 32px; width: 580px; max-width: 100%; max-height: 85vh; overflow-y: auto; box-shadow: 0 24px 64px rgba(0,0,0,0.4);
 }
-.modal-title { font-size: 20px; font-weight: 700; margin-bottom: 24px; }
+.modal-title { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
 
 /* ── CHECKLIST ── */
 .checklist { margin-bottom: 12px; }
 .checklist-title {
-  font-size: 13px; font-weight: 600; color: var(--text-dim);
+  font-size: 15px; font-weight: 600; color: var(--text-dim);
   text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 10px;
 }
-.check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 14px; }
+.check-item { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 16px; }
 .check-item input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
 
 /* ── TASKS ── */
@@ -223,9 +229,9 @@ select {
 }
 .task-item:hover { border-color: var(--border-focus); }
 .task-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.task-name { font-weight: 600; font-size: 14px; flex: 1; min-width: 120px; }
+.task-name { font-weight: 600; font-size: 16px; flex: 1; min-width: 120px; }
 .task-status, .billing-select {
-  font-size: 12px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
+  font-size: 14px; padding: 3px 10px; border-radius: 20px; font-weight: 600;
   cursor: pointer; border: none; font-family: var(--font);
 }
 .task-status option, .billing-select option { background: #e8e8e8; color: #222; }
@@ -238,7 +244,7 @@ select {
 .billing-paid { background: var(--green-bg); color: var(--green); }
 .billing-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
 .billing-amount-input {
-  width: 110px; padding: 3px 8px; font-size: 12px; font-family: var(--mono);
+  width: 110px; padding: 3px 8px; font-size: 14px; font-family: var(--mono);
   background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
   color: var(--text); text-align: right;
 }
@@ -246,7 +252,7 @@ select {
 .reorder-btns { display: flex; flex-direction: column; gap: 1px; margin-left: 4px; }
 .reorder-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
-  padding: 0; line-height: 1; font-size: 16px; display: flex; align-items: center;
+  padding: 0; line-height: 1; font-size: 18px; display: flex; align-items: center;
 }
 .reorder-btn:hover { color: var(--accent); }
 .project-log {
@@ -256,12 +262,12 @@ select {
 .project-log .section-title { margin-bottom: 12px; }
 .log-entry {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;
-  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 15px;
 }
 .log-entry:last-child { border-bottom: none; }
 .log-text { flex: 1; color: var(--text-dim); }
 .log-text strong { color: var(--text); font-weight: 600; }
-.log-date { color: var(--text-muted); font-size: 11px; white-space: nowrap; }
+.log-date { color: var(--text-muted); font-size: 13px; white-space: nowrap; }
 .log-delete-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
   padding: 2px; border-radius: 4px; display: flex; flex-shrink: 0;
@@ -270,7 +276,7 @@ select {
 
 /* ── LAST UPDATED LABEL ── */
 .last-updated-label {
-  font-size: 11px; color: var(--text-muted); cursor: pointer; position: relative;
+  font-size: 13px; color: var(--text-muted); cursor: pointer; position: relative;
   display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px;
   border-radius: 4px; transition: background 0.15s; margin-top: 6px;
   font-family: var(--mono); white-space: nowrap;
@@ -291,27 +297,32 @@ select {
   border: 8px solid transparent; border-top-color: var(--border);
 }
 .history-balloon .hb-title {
-  font-size: 12px; font-weight: 700; text-transform: uppercase;
+  font-size: 14px; font-weight: 700; text-transform: uppercase;
   letter-spacing: 0.6px; color: var(--text-dim); margin-bottom: 10px;
 }
 .history-entry {
-  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px;
 }
 .history-entry:last-child { border-bottom: none; }
 .history-entry .he-user { font-weight: 600; color: var(--accent); }
 .history-entry .he-action { color: var(--text-dim); }
 .history-entry .he-detail { color: var(--text); margin-top: 2px; }
-.history-entry .he-date { color: var(--text-muted); font-family: var(--mono); font-size: 10px; }
+.history-entry .he-date { color: var(--text-muted); font-family: var(--mono); font-size: 12px; }
 
 /* ── NOTES ── */
 .task-notes { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
-.note-item { padding: 10px 14px; background: var(--bg-input); border-radius: var(--radius); margin-bottom: 8px; font-size: 13px; }
+.note-item { padding: 10px 14px; background: var(--bg-input); border-radius: var(--radius); margin-bottom: 8px; font-size: 15px; position: relative; }
 .note-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.note-author { font-weight: 600; color: var(--accent); font-size: 12px; }
-.note-date { color: var(--text-muted); font-size: 11px; font-family: var(--mono); }
+.note-author { font-weight: 600; color: var(--accent); font-size: 14px; }
+.note-date { color: var(--text-muted); font-size: 13px; font-family: var(--mono); }
+.note-delete-btn {
+  background: none; border: none; color: var(--text-muted); cursor: pointer;
+  padding: 2px; border-radius: 4px; display: inline-flex; margin-left: 8px; vertical-align: middle;
+}
+.note-delete-btn:hover { color: var(--red); }
 .note-body { color: var(--text-dim); line-height: 1.6; }
 .add-note-form { display: flex; gap: 8px; margin-top: 8px; }
-.add-note-form textarea { flex: 1; min-height: 38px; max-height: 120px; padding: 8px 12px; font-size: 13px; }
+.add-note-form textarea { flex: 1; min-height: 38px; max-height: 120px; padding: 8px 12px; font-size: 15px; }
 
 /* ── DETAIL SECTION ── */
 .detail-section {
@@ -320,16 +331,16 @@ select {
 }
 .detail-row {
   display: grid; grid-template-columns: 140px 1fr; gap: 8px;
-  padding: 8px 0; font-size: 14px; border-bottom: 1px solid var(--border);
+  padding: 8px 0; font-size: 16px; border-bottom: 1px solid var(--border);
 }
 .detail-row:last-child { border-bottom: none; }
 .detail-label { color: var(--text-muted); font-weight: 500; }
-.section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.section-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
 
 /* ── TABLE ── */
-.data-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 16px; }
 .data-table th {
-  text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600;
+  text-align: left; padding: 10px 14px; font-size: 13px; font-weight: 600;
   text-transform: uppercase; letter-spacing: 0.6px; color: var(--text-muted);
   border-bottom: 1px solid var(--border);
 }
@@ -338,7 +349,13 @@ select {
 
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 .empty-state svg { width: 48px; height: 48px; margin-bottom: 16px; opacity: 0.4; }
-.empty-state p { font-size: 14px; }
+.empty-state p { font-size: 16px; }
+
+/* ── SECTION COLORS (Planos vs Permisos) ── */
+.section-planos { background: var(--plan-bg); border-color: var(--plan-border); }
+.section-planos .section-title { color: var(--plan-accent); }
+.section-permisos { background: var(--permit-bg); border-color: var(--permit-border); }
+.section-permisos .section-title { color: var(--permit-accent); }
 
 .icon-btn {
   background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer;
@@ -542,7 +559,7 @@ async function renderDashboard() {
     notesHtml += `<div class="note-item">
       <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
       <div class="note-body">${esc(n.text)}</div>
-      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">${esc(n.project_name)} → ${esc(n.task_name)}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${esc(n.project_name)} → ${esc(n.task_name)}</div>
     </div>`;
   });
 
@@ -551,20 +568,20 @@ async function renderDashboard() {
     <div class="card-grid" style="margin-bottom:28px;">
       <div class="detail-section" style="cursor:default;">
         <div style="font-size:32px;font-weight:700;color:var(--accent)">${d.clients}</div>
-        <div style="font-size:13px;color:var(--text-dim);margin-top:4px">Clientes</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:4px">Clientes</div>
       </div>
       <div class="detail-section" style="cursor:default;">
-        <div style="font-size:32px;font-weight:700;color:var(--purple)">${d.projects}</div>
-        <div style="font-size:13px;color:var(--text-dim);margin-top:4px">Proyectos</div>
+        <div style="font-size:34px;font-weight:700;color:var(--purple)">${d.projects}</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:4px">Proyectos</div>
       </div>
       <div class="detail-section" style="cursor:default;">
         <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div><span style="font-size:24px;font-weight:700;color:var(--green)">${d.tasks_completed}</span><div style="font-size:11px;color:var(--text-muted)">Completadas</div></div>
-          <div><span style="font-size:24px;font-weight:700;color:var(--accent)">${d.tasks_in_progress}</span><div style="font-size:11px;color:var(--text-muted)">En Progreso</div></div>
-          <div><span style="font-size:24px;font-weight:700;color:var(--amber)">${d.tasks_pending}</span><div style="font-size:11px;color:var(--text-muted)">Pendientes</div></div>
-          <div><span style="font-size:24px;font-weight:700;color:var(--red)">${d.tasks_blocked}</span><div style="font-size:11px;color:var(--text-muted)">Bloqueadas</div></div>
+          <div><span style="font-size:26px;font-weight:700;color:var(--green)">${d.tasks_completed}</span><div style="font-size:13px;color:var(--text-muted)">Completadas</div></div>
+          <div><span style="font-size:26px;font-weight:700;color:var(--accent)">${d.tasks_in_progress}</span><div style="font-size:13px;color:var(--text-muted)">En Progreso</div></div>
+          <div><span style="font-size:26px;font-weight:700;color:var(--amber)">${d.tasks_pending}</span><div style="font-size:13px;color:var(--text-muted)">Pendientes</div></div>
+          <div><span style="font-size:26px;font-weight:700;color:var(--red)">${d.tasks_blocked}</span><div style="font-size:13px;color:var(--text-muted)">Bloqueadas</div></div>
         </div>
-        <div style="font-size:13px;color:var(--text-dim);margin-top:8px">${d.tasks_total} Tareas en Total</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:8px">${d.tasks_total} Tareas en Total</div>
       </div>
     </div>
     <div class="detail-section">
@@ -695,8 +712,8 @@ async function renderClientDetail() {
       <div class="card-meta">${esc(pr.property_address || 'Sin dirección')}</div>
       <div style="margin-top:12px;">
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
-          <span style="color:var(--text-dim)">${pr.done_count}/${pr.task_count} tareas</span>
-          <span style="color:var(--accent);font-weight:600">${pct}%</span>
+          <span style="font-size:14px;color:var(--text-dim)">${pr.done_count}/${pr.task_count} tareas</span>
+          <span style="font-size:14px;color:var(--accent);font-weight:600">${pct}%</span>
         </div>
         <div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;">
           <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:2px;transition:width 0.3s;"></div>
@@ -815,17 +832,21 @@ async function renderProjectDetail() {
   const planTasks = (pr.tasks||[]).filter(t => t.category === 'plan');
   const permitTasks = (pr.tasks||[]).filter(t => t.category === 'permit');
 
-  function renderSection(title, list, icon) {
+  function renderSection(title, list, icon, sectionClass) {
     if (!list.length) return '';
-    let html = `<div class="detail-section" style="margin-bottom:20px;">
+    let html = `<div class="detail-section ${sectionClass || ''}" style="margin-bottom:20px;">
       <div class="section-title">${icon} ${title}</div>
       <div class="task-list">`;
     list.forEach(t => {
       const notes = (t.notes || []);
-      let notesHtml = notes.map(n => `<div class="note-item">
-        <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
+      let notesHtml = notes.map(n => {
+        const canDelete = currentUser && (n.author === currentUser.name || currentUser.role === 'admin');
+        const delBtn = canDelete ? `<button class="note-delete-btn" title="Eliminar nota" onclick="deleteNote('${n.id}')"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : '';
+        return `<div class="note-item">
+        <div class="note-header"><span class="note-author">${esc(n.author)}</span>${delBtn}<span class="note-date">${fmtDate(n.created_at)}</span></div>
         <div class="note-body">${esc(n.text)}</div>
-      </div>`).join('');
+      </div>`;
+      }).join('');
 
       const updLabel = t.last_updated_by
         ? `<div class="last-updated-label" onclick="toggleHistory(event, '${t.id}')">
@@ -855,7 +876,7 @@ async function renderProjectDetail() {
           </button>
         </div>
         <div class="billing-row">
-          <span style="font-size:12px;color:var(--text-dim);">Monto:</span>
+          <span style="font-size:14px;color:var(--text-dim);">Monto:</span>
           <input type="text" class="billing-amount-input" id="ba_${t.id}" value="${bAmount ? '$' + bAmount.toLocaleString('en-US') : ''}" placeholder="$0"
             onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
           <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="saveBilling('${t.id}')">
@@ -886,7 +907,7 @@ async function renderProjectDetail() {
     <div class="page-header">
       <div>
         <div class="page-title">${esc(pr.name)}</div>
-        <div style="font-size:13px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary btn-sm" onclick="openEditProjectModal('${pr.id}')">Editar Proyecto</button>
@@ -894,8 +915,8 @@ async function renderProjectDetail() {
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
       </div>
     </div>
-    ${renderSection('Planos', planTasks, planIcon)}
-    ${renderSection('Permisos', permitTasks, permitIcon)}
+    ${renderSection('Planos', planTasks, planIcon, 'section-planos')}
+    ${renderSection('Permisos', permitTasks, permitIcon, 'section-permisos')}
     ${!planTasks.length && !permitTasks.length ? '<div class="empty-state"><p>Sin tareas aún. Añade tareas de planos y permisos.</p></div>' : ''}
     ${renderProjectLog(pr.log || [])}
   </div>`;
@@ -917,6 +938,12 @@ async function addNote(taskId) {
 async function deleteTask(taskId) {
   if (!confirm('¿Eliminar esta tarea y sus notas?')) return;
   await api(`/api/tasks/${taskId}`, 'DELETE');
+  renderPage();
+}
+
+async function deleteNote(noteId) {
+  if (!confirm('¿Eliminar esta nota?')) return;
+  await api(`/api/notes/${noteId}`, 'DELETE');
   renderPage();
 }
 
@@ -1060,10 +1087,10 @@ async function renderAdmin() {
   const users = await api('/api/admin/users');
   let rows = users.map(u => `<tr>
     <td>${esc(u.name)}</td>
-    <td style="font-family:var(--mono);font-size:13px;">${esc(u.username)}</td>
+    <td style="font-family:var(--mono);font-size:15px;">${esc(u.username)}</td>
     <td><span class="badge ${u.role==='admin'?'badge-amber':'badge-blue'}">${u.role==='admin'?'Administrador':'Usuario'}</span></td>
-    <td style="font-family:var(--mono);font-size:12px;color:var(--text-muted)">${fmtDate(u.created_at)}</td>
-    <td>${u.id !== currentUser.id ? `<button class="btn btn-secondary btn-sm" onclick="resetPassword('${u.id}','${esc(u.name)}')">Resetear Contraseña</button>` : '<span style="color:var(--text-muted);font-size:12px">Tú</span>'}</td>
+    <td style="font-family:var(--mono);font-size:14px;color:var(--text-muted)">${fmtDate(u.created_at)}</td>
+    <td>${u.id !== currentUser.id ? `<button class="btn btn-secondary btn-sm" onclick="resetPassword('${u.id}','${esc(u.name)}')">Resetear Contraseña</button> <button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${esc(u.name)}')">Eliminar</button>` : '<span style="color:var(--text-muted);font-size:14px">Tú</span>'}</td>
   </tr>`).join('');
 
   return `<div class="fade-in">
@@ -1075,6 +1102,12 @@ async function renderAdmin() {
       </table>
     </div>
   </div>`;
+}
+
+async function deleteUser(userId, userName) {
+  if (!confirm(`¿Eliminar el usuario "${userName}"? Esta acción no se puede deshacer.`)) return;
+  await api(`/api/admin/users/${userId}`, 'DELETE');
+  renderPage();
 }
 
 async function resetPassword(userId, userName) {

@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.4"
+APP_VERSION = "0.1.5"
 
 import os
 import sqlite3
@@ -505,6 +505,19 @@ def create_note():
     db.commit()
     return jsonify({'ok': True, 'id': nid})
 
+@app.route('/api/notes/<nid>', methods=['DELETE'])
+@login_required
+def delete_note(nid):
+    db = get_db()
+    note = row_to_dict(db.execute("SELECT * FROM notes WHERE id=?", (nid,)).fetchone())
+    if not note:
+        return jsonify({'error': 'Nota no encontrada'}), 404
+    if note['author'] != g.user['name'] and g.user['role'] != 'admin':
+        return jsonify({'error': 'Solo puedes eliminar tus propias notas'}), 403
+    db.execute("DELETE FROM notes WHERE id=?", (nid,))
+    db.commit()
+    return jsonify({'ok': True})
+
 # ──────────────────────────────────────────────────
 #  ADMIN
 # ──────────────────────────────────────────────────
@@ -515,6 +528,16 @@ def get_users():
     db = get_db()
     users = rows_to_list(db.execute("SELECT id, name, username, role, created_at FROM users ORDER BY created_at").fetchall())
     return jsonify(users)
+
+@app.route('/api/admin/users/<uid>', methods=['DELETE'])
+@admin_required
+def delete_user(uid):
+    if uid == g.user['id']:
+        return jsonify({'error': 'No puedes eliminar tu propia cuenta'}), 400
+    db = get_db()
+    db.execute("DELETE FROM users WHERE id=?", (uid,))
+    db.commit()
+    return jsonify({'ok': True})
 
 @app.route('/api/admin/reset-password', methods=['POST'])
 @admin_required
