@@ -9,6 +9,7 @@ dist/
 build/
 venv/
 .env
+.secret_key
 
 # OS
 .DS_Store

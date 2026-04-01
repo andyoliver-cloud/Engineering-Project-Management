@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.5"
+APP_VERSION = "0.1.6"
 
 import os
 import sqlite3
@@ -24,7 +24,15 @@ from flask import (
 )
 
 app = Flask(__name__, static_folder='static', static_url_path='')
-app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+_key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.secret_key')
+if os.path.exists(_key_file):
+    with open(_key_file) as f:
+        app.secret_key = f.read().strip()
+else:
+    app.secret_key = secrets.token_hex(32)
+    with open(_key_file, 'w') as f:
+        f.write(app.secret_key)
+app.permanent_session_lifetime = 60 * 60 * 24 * 30  # 30 days
 
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'civilpm.db')
 
@@ -232,6 +240,7 @@ def login():
                       (username, hash_password(password))).fetchone()
     if not user:
         return jsonify({'error': 'Usuario o contraseña incorrecta'}), 401
+    session.permanent = True
     session['user_id'] = user['id']
     return jsonify({'ok': True, 'user': {'id': user['id'], 'name': user['name'], 'username': user['username'], 'role': user['role']}})
 
