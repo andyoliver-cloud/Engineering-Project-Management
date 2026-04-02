@@ -794,17 +794,19 @@ async function renderClientDetail() {
 //  PROJECT CREATION
 // ══════════════════════════════════════════════════
 const PLAN_TYPES = [
-  'Planos As-Built', 'Planos Arquitectónicos', 'Planos Estructurales', 'Planos de Plomería',
-  'Planos Eléctricos', 'Planos Mecánicos', 'Planos Civil / Sitio', 'Planos de Paisajismo',
-  'Modelo 3D / Rendering', 'Levantamiento Topográfico', 'Planos de Demolición'
+  'Planos As-Built', 'Plantas de Arquitectura y Fachadas', 'Plano de Situación (Site)',
+  'Plano de Plomería Interna', 'Plano de Electricidad Interna', 'Planos Estructurales',
+  'Plano de Site – Conceptual', 'Plano de Plomería – Extramuros', 'Plano de Electricidad – Extramuros',
+  'Plano de Demolición', '3D Render', 'Plot Plans para RPH'
 ];
 const PERMIT_TYPES = [
-  'OGPe – Consulta de Ubicación', 'OGPe – Permiso de Uso', 'OGPe – Permiso de Construcción',
-  'OGPe – Endoso Ambiental', 'ARPE – Evaluación Ambiental', 'ARPE – Consulta de Zona',
-  'Cuerpo de Bomberos – Endoso', 'AAA – Disponibilidad de Agua/Alcantarillado',
-  'AEE (LUMA) – Disponibilidad Eléctrica', 'DTOP – Acceso a Carretera',
-  'Junta de Planificación – Consulta', 'ICP – Evaluación Recurso Histórico',
-  'DRNA – Permiso Ambiental', 'Municipio – Patente / Permiso Municipal'
+  'DEC – Exclusión Ambiental', 'Permiso de Construcción', 'Permiso de Uso',
+  'SRI AAA – Preliminar', 'SRI AAA – Final', 'SRI LUMA – Preliminar', 'SRI LUMA – Final',
+  'SRI ACT – Preliminar', 'Endoso de Bomberos', 'Endoso de Salud Ambiental',
+  'Endoso de Cultura (ICP)', 'Endoso de Turismo', 'REA – Recomendación Ambiental',
+  'DEA – Determinación Ambiental', 'Endoso Municipal', 'Consulta de Ubicación',
+  'RPH – Régimen de Propiedad Horizontal', 'API - Autorización de Planos de Inscripción',
+  'PCU - Lotificación Ministerial'
 ];
 
 function openProjectModal(clientId) {
@@ -824,7 +826,7 @@ function openProjectModal(clientId) {
       </div>
     </div>
     <div class="checklist" style="margin-top:16px;">
-      <div class="checklist-title">¿Qué permisos se necesitan? (Puerto Rico)</div>
+      <div class="checklist-title">¿Qué permisos se necesitan?</div>
       ${permitsHtml}
       <div style="margin-top:8px;">
         <input type="text" id="mCustomPermit" placeholder="Otro tipo de permiso (Enter para añadir)" onkeydown="if(event.key==='Enter'){addCustomCheck('permits_custom','mCustomPermit');event.preventDefault();}">
