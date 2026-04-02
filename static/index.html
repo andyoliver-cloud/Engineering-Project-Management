@@ -586,6 +586,27 @@ async function renderDashboard() {
         <div style="font-size:15px;color:var(--text-dim);margin-top:8px">${d.tasks_total} Tareas en Total</div>
       </div>
     </div>
+    <div class="detail-section" style="margin-bottom:28px;">
+      <div class="section-title">Resumen de Facturación</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--accent);">$${fmtMoney(d.billing.total)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Total</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--text-muted);">$${fmtMoney(d.billing.not_billed)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">No Facturado</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--amber);">$${fmtMoney(d.billing.invoiced)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Facturado</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--green);">$${fmtMoney(d.billing.paid)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Pagado</div>
+        </div>
+      </div>
+    </div>
     <div class="detail-section">
       <div class="section-title">Actividad Reciente</div>
       ${notesHtml || '<div class="empty-state"><p>Sin actividad aún. Crea un cliente y proyecto para comenzar.</p></div>'}
@@ -914,6 +935,7 @@ async function renderProjectDetail() {
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary btn-sm" onclick="openEditProjectModal('${pr.id}')">Editar Proyecto</button>
         <button class="btn btn-secondary btn-sm" onclick="openAddTaskModal('${pr.id}')">+ Añadir Tarea</button>
+        <button class="btn btn-secondary btn-sm" onclick="window.open('/api/projects/${pr.id}/report','_blank')">Reporte PDF</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
       </div>
     </div>
@@ -1141,6 +1163,7 @@ function fmtShort(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString('es-PR', {month:'short',day:'numeric'}) + ' ' + d.toLocaleTimeString('es-PR', {hour:'2-digit',minute:'2-digit'});
 }
+function fmtMoney(n) { return (n || 0).toLocaleString('en-US'); }
 
 // ══════════════════════════════════════════════════
 //  INIT

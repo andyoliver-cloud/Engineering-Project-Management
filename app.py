@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.6"
+APP_VERSION = "0.1.7"
 
 import os
 import sqlite3
@@ -587,7 +587,145 @@ def dashboard():
         ORDER BY n.created_at DESC LIMIT 10
     """).fetchall())
     stats['recent_notes'] = recent
+    # Billing summary
+    billing = db.execute("""
+        SELECT
+            COALESCE(SUM(billing_amount), 0) as total,
+            COALESCE(SUM(CASE WHEN billing_status='none' THEN billing_amount ELSE 0 END), 0) as not_billed,
+            COALESCE(SUM(CASE WHEN billing_status='invoiced' THEN billing_amount ELSE 0 END), 0) as invoiced,
+            COALESCE(SUM(CASE WHEN billing_status='paid' THEN billing_amount ELSE 0 END), 0) as paid
+        FROM tasks
+    """).fetchone()
+    stats['billing'] = {
+        'total': billing['total'],
+        'not_billed': billing['not_billed'],
+        'invoiced': billing['invoiced'],
+        'paid': billing['paid']
+    }
     return jsonify(stats)
+
+# ──────────────────────────────────────────────────
+#  PROJECT REPORT
+# ──────────────────────────────────────────────────
+
+@app.route('/api/projects/<pid>/report', methods=['GET'])
+@login_required
+def project_report(pid):
+    db = get_db()
+    pr = row_to_dict(db.execute("SELECT * FROM projects WHERE id=?", (pid,)).fetchone())
+    if not pr:
+        return "Proyecto no encontrado", 404
+    cl = row_to_dict(db.execute("SELECT * FROM clients WHERE id=?", (pr['client_id'],)).fetchone())
+    tasks = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, sort_order, created_at", (pid,)).fetchall())
+    for t in tasks:
+        t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC LIMIT 3", (t['id'],)).fetchall())
+    plan_tasks = [t for t in tasks if t['category'] == 'plan']
+    permit_tasks = [t for t in tasks if t['category'] == 'permit']
+    total_billing = sum(t.get('billing_amount', 0) for t in tasks)
+    paid = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid')
+    invoiced = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced')
+    not_billed = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none')
+    total = len(tasks)
+    done = sum(1 for t in tasks if t['status'] == 'completed')
+    pct = round(done / total * 100) if total else 0
+
+    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada', 'blocked': 'Bloqueada'}
+    billing_labels = {'none': 'No Facturado', 'invoiced': 'Facturado', 'paid': 'Pagado'}
+
+    def task_rows(task_list):
+        rows = ''
+        for t in task_list:
+            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A' if t['status'] == 'completed' else '#DC2626'
+            notes_html = ''
+            for n in t.get('notes', []):
+                notes_html += f'<div style="font-size:11px;color:#4A5568;padding:2px 0;"><b>{n["author"]}</b>: {n["text"][:120]}</div>'
+            rows += f'''<tr>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{t['name']}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount',0):,}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+            </tr>'''
+            if notes_html:
+                rows += f'<tr><td colspan="4" style="padding:4px 12px 8px 24px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
+        return rows
+
+    html = f'''<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Reporte — {pr['name']}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:'DM Sans',sans-serif; color:#1E293B; padding:40px; max-width:900px; margin:0 auto; }}
+  @media print {{ body {{ padding:20px; }} .no-print {{ display:none !important; }} }}
+  .header {{ background:#1565C0; color:white; padding:24px 32px; border-radius:10px; margin-bottom:24px; }}
+  .header h1 {{ font-size:22px; margin-bottom:4px; }}
+  .header p {{ font-size:13px; opacity:0.9; }}
+  .info-grid {{ display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:24px; }}
+  .info-box {{ background:#F8FAFC; border:1px solid #E5E7EB; border-radius:8px; padding:16px; }}
+  .info-box h3 {{ font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#8896A6; margin-bottom:8px; }}
+  .info-box p {{ font-size:14px; }}
+  .summary-grid {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:24px; }}
+  .summary-card {{ background:#F8FAFC; border:1px solid #E5E7EB; border-radius:8px; padding:14px; text-align:center; }}
+  .summary-card .num {{ font-size:24px; font-weight:700; }}
+  .summary-card .label {{ font-size:11px; color:#8896A6; margin-top:2px; }}
+  .section {{ margin-bottom:20px; }}
+  .section h2 {{ font-size:16px; font-weight:700; padding:10px 0; border-bottom:2px solid #1565C0; margin-bottom:0; }}
+  .section.permit h2 {{ border-bottom-color:#B45309; }}
+  table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+  th {{ text-align:left; padding:8px 12px; font-size:11px; font-weight:600; text-transform:uppercase;
+       letter-spacing:0.5px; color:#8896A6; border-bottom:2px solid #E5E7EB; }}
+  .print-btn {{ background:#1565C0; color:white; border:none; padding:10px 24px; border-radius:6px;
+               font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }}
+  .print-btn:hover {{ background:#104E95; }}
+  .footer {{ text-align:center; font-size:11px; color:#8896A6; margin-top:32px; padding-top:16px; border-top:1px solid #E5E7EB; }}
+</style>
+</head><body>
+<div style="text-align:right;margin-bottom:16px;" class="no-print">
+  <button class="print-btn" onclick="window.print()">Imprimir / Guardar PDF</button>
+</div>
+<div class="header">
+  <h1>{pr['name']}</h1>
+  <p>{pr.get('property_address','') or 'Sin direccion'}</p>
+</div>
+<div class="info-grid">
+  <div class="info-box">
+    <h3>Cliente</h3>
+    <p><b>{cl['name']}</b></p>
+    <p>{cl.get('email','') or ''}</p>
+    <p>{cl.get('phone','') or ''}</p>
+  </div>
+  <div class="info-box">
+    <h3>Progreso General</h3>
+    <p style="font-size:28px;font-weight:700;color:#1565C0;">{pct}%</p>
+    <p>{done} de {total} tareas completadas</p>
+  </div>
+</div>
+<div class="summary-grid">
+  <div class="summary-card"><div class="num" style="color:#1565C0;">${total_billing:,}</div><div class="label">Total</div></div>
+  <div class="summary-card"><div class="num" style="color:#8896A6;">${not_billed:,}</div><div class="label">No Facturado</div></div>
+  <div class="summary-card"><div class="num" style="color:#D97706;">${invoiced:,}</div><div class="label">Facturado</div></div>
+  <div class="summary-card"><div class="num" style="color:#16A34A;">${paid:,}</div><div class="label">Pagado</div></div>
+</div>'''
+
+    if plan_tasks:
+        html += f'''<div class="section">
+  <h2>Planos</h2>
+  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto</th><th>Facturación</th></tr></thead>
+  <tbody>{task_rows(plan_tasks)}</tbody></table>
+</div>'''
+
+    if permit_tasks:
+        html += f'''<div class="section permit">
+  <h2>Permisos</h2>
+  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto</th><th>Facturación</th></tr></thead>
+  <tbody>{task_rows(permit_tasks)}</tbody></table>
+</div>'''
+
+    html += f'''<div class="footer">
+  CivilPM — Reporte generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}
+</div>
+</body></html>'''
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
 
 # ──────────────────────────────────────────────────
 #  RUN
