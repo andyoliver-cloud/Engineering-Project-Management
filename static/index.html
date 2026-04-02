@@ -760,6 +760,27 @@ async function renderClientDetail() {
       <div class="detail-row"><div class="detail-label">Teléfono</div><div>${esc(cl.phone || '—')}</div></div>
       <div class="detail-row"><div class="detail-label">Dirección</div><div>${esc(cl.address || '—')}</div></div>
     </div>
+    <div class="detail-section" style="margin-bottom:24px;">
+      <div class="section-title">Resumen de Facturación</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--accent);">$${fmtMoney(cl.billing.total)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Total</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--text-muted);">$${fmtMoney(cl.billing.not_billed)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">No Facturado</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--amber);">$${fmtMoney(cl.billing.invoiced)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Facturado</div>
+        </div>
+        <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
+          <div style="font-size:24px;font-weight:700;color:var(--green);">$${fmtMoney(cl.billing.paid)}</div>
+          <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Pagado</div>
+        </div>
+      </div>
+    </div>
     <div class="page-header">
       <div class="section-title" style="margin:0;">Propiedades / Proyectos</div>
       <button class="btn btn-primary btn-sm" onclick="openProjectModal('${cl.id}')">+ Nuevo Proyecto</button>

@@ -289,6 +289,23 @@ def get_client(cid):
         done = db.execute("SELECT COUNT(*) as c FROM tasks WHERE project_id=? AND status='completed'", (pr['id'],)).fetchone()['c']
         pr['task_count'] = total
         pr['done_count'] = done
+    # Client billing summary
+    billing = db.execute("""
+        SELECT
+            COALESCE(SUM(t.billing_amount), 0) as total,
+            COALESCE(SUM(CASE WHEN t.billing_status='none' THEN t.billing_amount ELSE 0 END), 0) as not_billed,
+            COALESCE(SUM(CASE WHEN t.billing_status='invoiced' THEN t.billing_amount ELSE 0 END), 0) as invoiced,
+            COALESCE(SUM(CASE WHEN t.billing_status='paid' THEN t.billing_amount ELSE 0 END), 0) as paid
+        FROM tasks t
+        JOIN projects p ON t.project_id = p.id
+        WHERE p.client_id=?
+    """, (cid,)).fetchone()
+    cl['billing'] = {
+        'total': billing['total'],
+        'not_billed': billing['not_billed'],
+        'invoiced': billing['invoiced'],
+        'paid': billing['paid']
+    }
     return jsonify(cl)
 
 @app.route('/api/clients/<cid>', methods=['PUT'])
