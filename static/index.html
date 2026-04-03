@@ -240,7 +240,6 @@ select {
 .status-pending { background: var(--amber-bg); color: var(--amber); }
 .status-in-progress { background: var(--accent-glow); color: var(--accent); }
 .status-completed { background: var(--green-bg); color: var(--green); }
-.status-blocked { background: var(--red-bg); color: var(--red); }
 .billing-none { background: var(--bg-card-hover); color: var(--text-dim); }
 .billing-invoiced { background: var(--amber-bg); color: var(--amber); }
 .billing-paid { background: var(--green-bg); color: var(--green); }
@@ -358,6 +357,8 @@ select {
 .section-planos .section-title { color: var(--plan-accent); }
 .section-permisos { background: var(--permit-bg); border-color: var(--permit-border); }
 .section-permisos .section-title { color: var(--permit-accent); }
+.sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+@media (max-width: 960px) { .sections-grid { grid-template-columns: 1fr; } }
 
 .icon-btn {
   background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer;
@@ -509,6 +510,7 @@ async function handleLogin() {
 }
 
 async function handleLogout() {
+  stopNotifications();
   await api('/api/auth/logout', 'POST');
   currentUser = null;
   document.getElementById('appPage').classList.add('hidden');
@@ -522,6 +524,7 @@ function showApp() {
   document.getElementById('userName').textContent = currentUser.name;
   document.getElementById('userRole').textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuario';
   document.getElementById('navAdmin').classList.toggle('hidden', currentUser.role !== 'admin');
+  startNotifications();
   navigate('dashboard');
 }
 
@@ -581,7 +584,6 @@ async function renderDashboard() {
           <div><span style="font-size:26px;font-weight:700;color:var(--green)">${d.tasks_completed}</span><div style="font-size:13px;color:var(--text-muted)">Completadas</div></div>
           <div><span style="font-size:26px;font-weight:700;color:var(--accent)">${d.tasks_in_progress}</span><div style="font-size:13px;color:var(--text-muted)">En Progreso</div></div>
           <div><span style="font-size:26px;font-weight:700;color:var(--amber)">${d.tasks_pending}</span><div style="font-size:13px;color:var(--text-muted)">Pendientes</div></div>
-          <div><span style="font-size:26px;font-weight:700;color:var(--red)">${d.tasks_blocked}</span><div style="font-size:13px;color:var(--text-muted)">Bloqueadas</div></div>
         </div>
         <div style="font-size:15px;color:var(--text-dim);margin-top:8px">${d.tasks_total} Tareas en Total</div>
       </div>
@@ -916,7 +918,6 @@ async function renderProjectDetail() {
             <option value="pending" ${t.status==='pending'?'selected':''}>Pendiente</option>
             <option value="in-progress" ${t.status==='in-progress'?'selected':''}>En Progreso</option>
             <option value="completed" ${t.status==='completed'?'selected':''}>Completada</option>
-            <option value="blocked" ${t.status==='blocked'?'selected':''}>Bloqueada</option>
           </select>
           <button class="icon-btn danger" title="Eliminar tarea" onclick="deleteTask('${t.id}')">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
@@ -963,7 +964,7 @@ async function renderProjectDetail() {
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+    <div class="sections-grid">
       ${renderSection('Planos', planTasks, planIcon, 'section-planos')}
       ${renderSection('Permisos', permitTasks, permitIcon, 'section-permisos')}
     </div>
@@ -1135,6 +1136,8 @@ document.addEventListener('click', () => {
 async function renderAdmin() {
   if (currentUser.role !== 'admin') return '<div class="empty-state"><p>Se requiere acceso de administrador.</p></div>';
   const users = await api('/api/admin/users');
+  const regSetting = await api('/api/admin/registration');
+  const regChecked = regSetting.registration_open ? 'checked' : '';
   let rows = users.map(u => `<tr>
     <td>${esc(u.name)}</td>
     <td style="font-family:var(--mono);font-size:15px;">${esc(u.username)}</td>
@@ -1145,13 +1148,27 @@ async function renderAdmin() {
 
   return `<div class="fade-in">
     <div class="page-header"><div class="page-title">Administración de Usuarios</div></div>
+    <div class="detail-section" style="margin-bottom:24px;">
+      <div class="section-title">Configuración</div>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:15px;">
+          <input type="checkbox" ${regChecked} onchange="toggleRegistration(this.checked)" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer;">
+          Permitir registro de nuevas cuentas
+        </label>
+      </div>
+    </div>
     <div class="detail-section">
+      <div class="section-title">Usuarios</div>
       <table class="data-table">
         <thead><tr><th>Nombre</th><th>Usuario</th><th>Rol</th><th>Creado</th><th>Acciones</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
   </div>`;
+}
+
+async function toggleRegistration(open) {
+  await api('/api/admin/registration', 'PUT', { registration_open: open });
 }
 
 async function deleteUser(userId, userName) {
@@ -1201,6 +1218,8 @@ function fmtMoney(n) { return (n || 0).toLocaleString('en-US'); }
       toggleRegister();
       document.getElementById('loginSubtitle').textContent = 'Crea la cuenta de administrador para comenzar';
       document.getElementById('registerToggle').classList.add('hidden');
+    } else if (!status.registration_open) {
+      document.getElementById('registerToggle').classList.add('hidden');
     }
     if (status.logged_in) {
       currentUser = status.user;
@@ -1223,6 +1242,52 @@ function fmtMoney(n) { return (n || 0).toLocaleString('en-US'); }
   document.getElementById('loginPass').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });
   document.getElementById('loginUser').addEventListener('keydown', e => { if(e.key==='Enter') handleLogin(); });
 })();
+
+// ══════════════════════════════════════════════════
+//  DESKTOP NOTIFICATIONS
+// ══════════════════════════════════════════════════
+let _notifLastTs = '';
+let _notifInterval = null;
+
+function startNotifications() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+  // Set initial timestamp to now so we don't show old notifications
+  _notifLastTs = new Date().toISOString().replace('Z','').slice(0,19);
+  if (_notifInterval) clearInterval(_notifInterval);
+  _notifInterval = setInterval(pollNotifications, 15000);
+}
+
+function stopNotifications() {
+  if (_notifInterval) { clearInterval(_notifInterval); _notifInterval = null; }
+}
+
+async function pollNotifications() {
+  if (!currentUser || Notification.permission !== 'granted') return;
+  try {
+    const notifs = await api(`/api/notifications?since=${encodeURIComponent(_notifLastTs)}`);
+    if (!notifs.length) return;
+    _notifLastTs = notifs[0].created_at;
+    notifs.reverse().forEach(n => {
+      // Don't notify about own actions
+      if (n.user_name === currentUser.name) return;
+      const notif = new Notification('CivilPM', {
+        body: `${n.user_name} ${n.action}\n${n.detail || ''}`,
+        icon: '/favicon.ico',
+        tag: n.id
+      });
+      if (n.project_id) {
+        notif.onclick = () => {
+          window.focus();
+          navigate('project-detail', { projectId: n.project_id });
+          notif.close();
+        };
+      }
+    });
+  } catch(e) {}
+}
 </script>
 </body>
 </html>

@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "0.1.7"
+APP_VERSION = "1.0.0"
 
 import os
 import sqlite3
@@ -119,7 +119,25 @@ def init_db():
             created_at TEXT NOT NULL,
             FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS notifications (
+            id TEXT PRIMARY KEY,
+            user_name TEXT NOT NULL,
+            action TEXT NOT NULL,
+            detail TEXT DEFAULT '',
+            project_id TEXT DEFAULT '',
+            created_at TEXT NOT NULL
+        );
     """)
+    # Default settings
+    existing = db.execute("SELECT key FROM settings WHERE key='registration_open'").fetchone()
+    if not existing:
+        db.execute("INSERT INTO settings (key, value) VALUES ('registration_open', '1')")
     # Migrations for existing databases
     cols = [r[1] for r in db.execute("PRAGMA table_info(tasks)").fetchall()]
     if 'billing_amount' not in cols:
@@ -205,7 +223,9 @@ def auth_status():
         if user:
             logged_in = True
             user_data = row_to_dict(user)
-    return jsonify({'logged_in': logged_in, 'user': user_data, 'has_users': user_count > 0})
+    reg_open = db.execute("SELECT value FROM settings WHERE key='registration_open'").fetchone()
+    registration_open = (reg_open['value'] == '1') if reg_open else True
+    return jsonify({'logged_in': logged_in, 'user': user_data, 'has_users': user_count > 0, 'registration_open': registration_open})
 
 @app.route('/api/auth/register', methods=['POST'])
 def register():
@@ -217,11 +237,14 @@ def register():
         return jsonify({'error': 'Todos los campos son requeridos (contraseña mínimo 3 caracteres)'}), 400
 
     db = get_db()
+    user_count = db.execute("SELECT COUNT(*) as c FROM users").fetchone()['c']
+    if user_count > 0:
+        reg_open = db.execute("SELECT value FROM settings WHERE key='registration_open'").fetchone()
+        if reg_open and reg_open['value'] != '1':
+            return jsonify({'error': 'El registro de nuevas cuentas está deshabilitado'}), 403
     existing = db.execute("SELECT id FROM users WHERE username=?", (username,)).fetchone()
     if existing:
         return jsonify({'error': 'Ese nombre de usuario ya existe'}), 400
-
-    user_count = db.execute("SELECT COUNT(*) as c FROM users").fetchone()['c']
     role = 'admin' if user_count == 0 else 'user'
     uid = gen_id()
 
@@ -427,13 +450,14 @@ def update_task_status(tid):
     data = request.json
     new_status = data.get('status', 'pending')
     db = get_db()
-    old = row_to_dict(db.execute("SELECT status FROM tasks WHERE id=?", (tid,)).fetchone())
-    status_labels = {'pending':'Pendiente','in-progress':'En Progreso','completed':'Completada','blocked':'Bloqueada'}
+    task = row_to_dict(db.execute("SELECT * FROM tasks WHERE id=?", (tid,)).fetchone())
+    status_labels = {'pending':'Pendiente','in-progress':'En Progreso','completed':'Completada'}
     db.execute("UPDATE tasks SET status=?, last_updated_by=?, last_updated_at=? WHERE id=?",
                (new_status, g.user['name'], now_iso(), tid))
+    detail = f"{status_labels.get(task['status'] if task else '','?')} → {status_labels.get(new_status,'?')}"
     db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
-               (gen_id(), tid, g.user['name'], 'cambió estado',
-                f"{status_labels.get(old['status'] if old else '','?')} → {status_labels.get(new_status,'?')}", now_iso()))
+               (gen_id(), tid, g.user['name'], 'cambió estado', detail, now_iso()))
+    create_notification(db, g.user['name'], 'cambió estado', f"{task['name']}: {detail}", task['project_id'])
     db.commit()
     return jsonify({'ok': True})
 
@@ -469,8 +493,10 @@ def update_task_billing(tid):
     if old and old['billing_status'] != new_status:
         details.append(f"{billing_labels.get(old['billing_status'],'?')} → {billing_labels.get(new_status,'?')}")
     if details:
+        task = row_to_dict(db.execute("SELECT name, project_id FROM tasks WHERE id=?", (tid,)).fetchone())
         db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
                    (gen_id(), tid, g.user['name'], 'cambió facturación', ', '.join(details), now_iso()))
+        create_notification(db, g.user['name'], 'cambió facturación', f"{task['name']}: {', '.join(details)}", task['project_id'])
     db.commit()
     return jsonify({'ok': True})
 
@@ -528,6 +554,8 @@ def create_note():
                (g.user['name'], ts, task_id))
     db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
                (gen_id(), task_id, g.user['name'], 'añadió nota', text[:100], ts))
+    task = row_to_dict(db.execute("SELECT name, project_id FROM tasks WHERE id=?", (task_id,)).fetchone())
+    create_notification(db, g.user['name'], 'añadió nota', f"{task['name']}: {text[:80]}", task['project_id'])
     db.commit()
     return jsonify({'ok': True, 'id': nid})
 
@@ -565,6 +593,23 @@ def delete_user(uid):
     db.commit()
     return jsonify({'ok': True})
 
+@app.route('/api/admin/registration', methods=['GET'])
+@admin_required
+def get_registration_setting():
+    db = get_db()
+    reg = db.execute("SELECT value FROM settings WHERE key='registration_open'").fetchone()
+    return jsonify({'registration_open': reg['value'] == '1' if reg else True})
+
+@app.route('/api/admin/registration', methods=['PUT'])
+@admin_required
+def set_registration_setting():
+    data = request.json
+    val = '1' if data.get('registration_open') else '0'
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('registration_open', ?)", (val,))
+    db.commit()
+    return jsonify({'ok': True, 'registration_open': val == '1'})
+
 @app.route('/api/admin/reset-password', methods=['POST'])
 @admin_required
 def reset_password():
@@ -577,6 +622,28 @@ def reset_password():
     db.execute("UPDATE users SET password_hash=? WHERE id=?", (hash_password(new_pass), user_id))
     db.commit()
     return jsonify({'ok': True})
+
+def create_notification(db, user_name, action, detail, project_id):
+    db.execute("INSERT INTO notifications (id, user_name, action, detail, project_id, created_at) VALUES (?,?,?,?,?,?)",
+               (gen_id(), user_name, action, detail, project_id, now_iso()))
+
+# ──────────────────────────────────────────────────
+#  NOTIFICATIONS
+# ──────────────────────────────────────────────────
+
+@app.route('/api/notifications', methods=['GET'])
+@login_required
+def get_notifications():
+    since = request.args.get('since', '')
+    db = get_db()
+    if since:
+        notifs = rows_to_list(db.execute(
+            "SELECT * FROM notifications WHERE created_at > ? ORDER BY created_at DESC LIMIT 20",
+            (since,)).fetchall())
+    else:
+        notifs = rows_to_list(db.execute(
+            "SELECT * FROM notifications ORDER BY created_at DESC LIMIT 5").fetchall())
+    return jsonify(notifs)
 
 # ──────────────────────────────────────────────────
 #  DASHBOARD STATS
@@ -593,7 +660,6 @@ def dashboard():
         'tasks_completed': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='completed'").fetchone()['c'],
         'tasks_pending': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='pending'").fetchone()['c'],
         'tasks_in_progress': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='in-progress'").fetchone()['c'],
-        'tasks_blocked': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='blocked'").fetchone()['c'],
     }
     recent = rows_to_list(db.execute("""
         SELECT n.*, t.name as task_name, p.name as project_name, c.name as client_name
@@ -646,13 +712,13 @@ def project_report(pid):
     done = sum(1 for t in tasks if t['status'] == 'completed')
     pct = round(done / total * 100) if total else 0
 
-    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada', 'blocked': 'Bloqueada'}
+    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada'}
     billing_labels = {'none': 'No Facturado', 'invoiced': 'Facturado', 'paid': 'Pagado'}
 
     def task_rows(task_list):
         rows = ''
         for t in task_list:
-            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A' if t['status'] == 'completed' else '#DC2626'
+            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
@@ -780,13 +846,13 @@ def client_report(cid):
     grand_invoiced = sum(p['billing_invoiced'] for p in active_projects)
     grand_not_billed = sum(p['billing_not_billed'] for p in active_projects)
 
-    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada', 'blocked': 'Bloqueada'}
+    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada'}
     billing_labels = {'none': 'No Facturado', 'invoiced': 'Facturado', 'paid': 'Pagado'}
 
     def task_rows(task_list):
         rows = ''
         for t in task_list:
-            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A' if t['status'] == 'completed' else '#DC2626'
+            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
