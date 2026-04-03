@@ -655,7 +655,8 @@ def project_report(pid):
             sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A' if t['status'] == 'completed' else '#DC2626'
             notes_html = ''
             for n in t.get('notes', []):
-                notes_html += f'<div style="font-size:11px;color:#4A5568;padding:2px 0;"><b>{n["author"]}</b>: {n["text"][:120]}</div>'
+                ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
+                notes_html += f'<div style="font-size:11px;color:#4A5568;padding:2px 0;"><b>{n["author"]}</b> <span style="color:#8896A6;">({ndate})</span>: {n["text"][:120]}</div>'
             rows += f'''<tr>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{t['name']}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
@@ -739,6 +740,149 @@ def project_report(pid):
 </div>'''
 
     html += f'''<div class="footer">
+  CivilPM — Reporte generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}
+</div>
+</body></html>'''
+    return html, 200, {'Content-Type': 'text/html; charset=utf-8'}
+
+@app.route('/api/clients/<cid>/report', methods=['GET'])
+@login_required
+def client_report(cid):
+    db = get_db()
+    cl = row_to_dict(db.execute("SELECT * FROM clients WHERE id=?", (cid,)).fetchone())
+    if not cl:
+        return "Cliente no encontrado", 404
+    projects = rows_to_list(db.execute("SELECT * FROM projects WHERE client_id=? ORDER BY created_at DESC", (cid,)).fetchall())
+
+    # Build project data, filter out 100% completed
+    active_projects = []
+    for pr in projects:
+        tasks = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, sort_order, created_at", (pr['id'],)).fetchall())
+        for t in tasks:
+            t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC LIMIT 2", (t['id'],)).fetchall())
+        total = len(tasks)
+        done = sum(1 for t in tasks if t['status'] == 'completed')
+        if total > 0 and done == total:
+            continue  # skip 100% completed
+        pr['tasks'] = tasks
+        pr['total'] = total
+        pr['done'] = done
+        pr['pct'] = round(done / total * 100) if total else 0
+        pr['billing_total'] = sum(t.get('billing_amount', 0) for t in tasks)
+        pr['billing_paid'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid')
+        pr['billing_invoiced'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced')
+        pr['billing_not_billed'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none')
+        active_projects.append(pr)
+
+    # Client-wide billing totals (active projects only)
+    grand_total = sum(p['billing_total'] for p in active_projects)
+    grand_paid = sum(p['billing_paid'] for p in active_projects)
+    grand_invoiced = sum(p['billing_invoiced'] for p in active_projects)
+    grand_not_billed = sum(p['billing_not_billed'] for p in active_projects)
+
+    status_labels = {'pending': 'Pendiente', 'in-progress': 'En Progreso', 'completed': 'Completada', 'blocked': 'Bloqueada'}
+    billing_labels = {'none': 'No Facturado', 'invoiced': 'Facturado', 'paid': 'Pagado'}
+
+    def task_rows(task_list):
+        rows = ''
+        for t in task_list:
+            sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A' if t['status'] == 'completed' else '#DC2626'
+            notes_html = ''
+            for n in t.get('notes', []):
+                ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
+                notes_html += f'<div style="font-size:11px;color:#4A5568;padding:2px 0;"><b>{n["author"]}</b> <span style="color:#8896A6;">({ndate})</span>: {n["text"][:120]}</div>'
+            rows += f'''<tr>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{t['name']}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount',0):,}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+            </tr>'''
+            if notes_html:
+                rows += f'<tr><td colspan="4" style="padding:2px 10px 6px 20px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
+        return rows
+
+    projects_html = ''
+    for pr in active_projects:
+        plan_tasks = [t for t in pr['tasks'] if t['category'] == 'plan']
+        permit_tasks = [t for t in pr['tasks'] if t['category'] == 'permit']
+        projects_html += f'''<div style="border:1px solid #E5E7EB;border-radius:8px;padding:20px;margin-bottom:20px;page-break-inside:avoid;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+    <div>
+      <h3 style="font-size:16px;margin:0;">{pr['name']}</h3>
+      <p style="font-size:12px;color:#8896A6;margin:2px 0 0 0;">{pr.get('property_address','') or 'Sin dirección'}</p>
+    </div>
+    <div style="text-align:right;">
+      <span style="font-size:22px;font-weight:700;color:#1565C0;">{pr['pct']}%</span>
+      <div style="font-size:11px;color:#8896A6;">{pr['done']}/{pr['total']} tareas</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
+    <div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:6px;"><div style="font-size:16px;font-weight:700;color:#1565C0;">${pr['billing_total']:,}</div><div style="font-size:10px;color:#8896A6;">Total</div></div>
+    <div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:6px;"><div style="font-size:16px;font-weight:700;color:#8896A6;">${pr['billing_not_billed']:,}</div><div style="font-size:10px;color:#8896A6;">No Fact.</div></div>
+    <div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:6px;"><div style="font-size:16px;font-weight:700;color:#D97706;">${pr['billing_invoiced']:,}</div><div style="font-size:10px;color:#8896A6;">Facturado</div></div>
+    <div style="text-align:center;padding:8px;background:#F8FAFC;border-radius:6px;"><div style="font-size:16px;font-weight:700;color:#16A34A;">${pr['billing_paid']:,}</div><div style="font-size:10px;color:#8896A6;">Pagado</div></div>
+  </div>'''
+        if plan_tasks:
+            projects_html += f'''<div style="margin-bottom:10px;">
+    <h4 style="font-size:13px;color:#1565C0;border-bottom:2px solid #1565C0;padding-bottom:4px;margin:0 0 6px 0;">Planos</h4>
+    <table style="width:100%;border-collapse:collapse;"><thead><tr>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Tarea</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Estado</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact.</th>
+    </tr></thead><tbody>{task_rows(plan_tasks)}</tbody></table></div>'''
+        if permit_tasks:
+            projects_html += f'''<div>
+    <h4 style="font-size:13px;color:#B45309;border-bottom:2px solid #B45309;padding-bottom:4px;margin:0 0 6px 0;">Permisos</h4>
+    <table style="width:100%;border-collapse:collapse;"><thead><tr>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Tarea</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Estado</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact.</th>
+    </tr></thead><tbody>{task_rows(permit_tasks)}</tbody></table></div>'''
+        projects_html += '</div>'
+
+    html = f'''<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>Reporte de Cliente — {cl['name']}</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+  * {{ margin:0; padding:0; box-sizing:border-box; }}
+  body {{ font-family:'DM Sans',sans-serif; color:#1E293B; padding:40px; max-width:900px; margin:0 auto; }}
+  @media print {{ body {{ padding:20px; }} .no-print {{ display:none !important; }} }}
+  .print-btn {{ background:#1565C0; color:white; border:none; padding:10px 24px; border-radius:6px;
+               font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }}
+  .print-btn:hover {{ background:#104E95; }}
+</style>
+</head><body>
+<div style="text-align:right;margin-bottom:16px;" class="no-print">
+  <button class="print-btn" onclick="window.print()">Imprimir / Guardar PDF</button>
+</div>
+<div style="background:#1565C0;color:white;padding:24px 32px;border-radius:10px;margin-bottom:24px;">
+  <h1 style="font-size:22px;margin-bottom:4px;">{cl['name']}</h1>
+  <p style="font-size:13px;opacity:0.9;">Reporte de Proyectos Activos</p>
+</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:24px;">
+  <div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:16px;">
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#8896A6;margin-bottom:8px;">Contacto</h3>
+    <p style="font-size:14px;">{cl.get('email','') or '—'}</p>
+    <p style="font-size:14px;">{cl.get('phone','') or '—'}</p>
+    <p style="font-size:14px;">{cl.get('address','') or '—'}</p>
+  </div>
+  <div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:16px;">
+    <h3 style="font-size:12px;text-transform:uppercase;letter-spacing:0.5px;color:#8896A6;margin-bottom:8px;">Facturación Global</h3>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;">
+      <div><div style="font-size:20px;font-weight:700;color:#1565C0;">${grand_total:,}</div><div style="font-size:10px;color:#8896A6;">Total</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:#8896A6;">${grand_not_billed:,}</div><div style="font-size:10px;color:#8896A6;">No Facturado</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:#D97706;">${grand_invoiced:,}</div><div style="font-size:10px;color:#8896A6;">Facturado</div></div>
+      <div><div style="font-size:20px;font-weight:700;color:#16A34A;">${grand_paid:,}</div><div style="font-size:10px;color:#8896A6;">Pagado</div></div>
+    </div>
+  </div>
+</div>
+<h2 style="font-size:18px;margin-bottom:16px;">{len(active_projects)} Proyecto{'s' if len(active_projects) != 1 else ''} Activo{'s' if len(active_projects) != 1 else ''}</h2>
+{projects_html}
+{('<div style="text-align:center;padding:40px;color:#8896A6;">No hay proyectos activos para este cliente.</div>' if not active_projects else '')}
+<div style="text-align:center;font-size:11px;color:#8896A6;margin-top:32px;padding-top:16px;border-top:1px solid #E5E7EB;">
   CivilPM — Reporte generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}
 </div>
 </body></html>'''

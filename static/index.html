@@ -587,7 +587,7 @@ async function renderDashboard() {
       </div>
     </div>
     <div class="detail-section" style="margin-bottom:28px;">
-      <div class="section-title">Resumen de Facturación</div>
+      <div class="section-title">Resumen de Facturación Global</div>
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
         <div style="text-align:center;padding:12px;background:var(--bg);border-radius:var(--radius);">
           <div style="font-size:24px;font-weight:700;color:var(--accent);">$${fmtMoney(d.billing.total)}</div>
@@ -751,6 +751,7 @@ async function renderClientDetail() {
       <div class="page-title">${esc(cl.name)}</div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary btn-sm" onclick="openClientModal('${cl.id}')">Editar</button>
+        <button class="btn btn-secondary btn-sm" onclick="window.open('/api/clients/${cl.id}/report','_blank')">Reporte PDF</button>
         <button class="btn btn-danger btn-sm" onclick="deleteClient('${cl.id}')">Eliminar</button>
       </div>
     </div>
@@ -962,8 +963,10 @@ async function renderProjectDetail() {
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${pr.id}','${cl.id}')">Eliminar Proyecto</button>
       </div>
     </div>
-    ${renderSection('Planos', planTasks, planIcon, 'section-planos')}
-    ${renderSection('Permisos', permitTasks, permitIcon, 'section-permisos')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;">
+      ${renderSection('Planos', planTasks, planIcon, 'section-planos')}
+      ${renderSection('Permisos', permitTasks, permitIcon, 'section-permisos')}
+    </div>
     ${!planTasks.length && !permitTasks.length ? '<div class="empty-state"><p>Sin tareas aún. Añade tareas de planos y permisos.</p></div>' : ''}
     ${renderProjectLog(pr.log || [])}
   </div>`;
