@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "1.0.4"
+APP_VERSION = "1.0.5"
 
 import os
 import sqlite3
@@ -167,6 +167,10 @@ def init_db():
         db.execute("ALTER TABLE tasks ADD COLUMN billing_label2 TEXT DEFAULT ''")
     if 'sort_order' not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+    if 'paid_date1' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN paid_date1 TEXT DEFAULT ''")
+    if 'paid_date2' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN paid_date2 TEXT DEFAULT ''")
     proj_cols = [r[1] for r in db.execute("PRAGMA table_info(projects)").fetchall()]
     if 'catastro' not in proj_cols:
         db.execute("ALTER TABLE projects ADD COLUMN catastro TEXT DEFAULT ''")
@@ -373,6 +377,23 @@ def get_client(cid):
         'invoiced': billing['invoiced'],
         'paid': billing['paid']
     }
+    # Yearly payment breakdown for this client
+    yearly_rows = rows_to_list(db.execute("""
+        SELECT
+            year,
+            SUM(amount) as total
+        FROM (
+            SELECT SUBSTR(t.paid_date1, 1, 4) as year, t.billing_amount as amount FROM tasks t
+            JOIN projects p ON t.project_id = p.id WHERE p.client_id=? AND t.billing_status='paid' AND t.paid_date1 != ''
+            UNION ALL
+            SELECT SUBSTR(t.paid_date2, 1, 4) as year, t.billing_amount2 as amount FROM tasks t
+            JOIN projects p ON t.project_id = p.id WHERE p.client_id=? AND t.billing_status2='paid' AND t.paid_date2 != ''
+        )
+        WHERE year != ''
+        GROUP BY year
+        ORDER BY year DESC
+    """, (cid, cid)).fetchall())
+    cl['billing']['yearly'] = yearly_rows
     return jsonify(cl)
 
 @app.route('/api/clients/<cid>', methods=['PUT'])
@@ -533,15 +554,18 @@ def get_task_history(tid):
 def update_task_billing(tid):
     data = request.json
     db = get_db()
-    old = row_to_dict(db.execute("SELECT billing_amount, billing_status, billing_label, billing_amount2, billing_status2, billing_label2 FROM tasks WHERE id=?", (tid,)).fetchone())
+    old = row_to_dict(db.execute("SELECT billing_amount, billing_status, billing_label, billing_amount2, billing_status2, billing_label2, paid_date1, paid_date2 FROM tasks WHERE id=?", (tid,)).fetchone())
     new_amount = int(data.get('billing_amount', 0))
     new_status = data.get('billing_status', 'none')
     new_label = (data.get('billing_label') or '').strip()
     new_amount2 = int(data.get('billing_amount2', 0))
     new_status2 = data.get('billing_status2', 'none')
     new_label2 = (data.get('billing_label2') or '').strip()
-    db.execute("UPDATE tasks SET billing_amount=?, billing_status=?, billing_label=?, billing_amount2=?, billing_status2=?, billing_label2=?, last_updated_by=?, last_updated_at=? WHERE id=?",
-               (new_amount, new_status, new_label, new_amount2, new_status2, new_label2, g.user['name'], now_iso(), tid))
+    # Handle paid dates: keep date if paid, clear if not
+    new_paid_date1 = (data.get('paid_date1') or '').strip() if new_status == 'paid' else ''
+    new_paid_date2 = (data.get('paid_date2') or '').strip() if new_status2 == 'paid' else ''
+    db.execute("UPDATE tasks SET billing_amount=?, billing_status=?, billing_label=?, billing_amount2=?, billing_status2=?, billing_label2=?, paid_date1=?, paid_date2=?, last_updated_by=?, last_updated_at=? WHERE id=?",
+               (new_amount, new_status, new_label, new_amount2, new_status2, new_label2, new_paid_date1, new_paid_date2, g.user['name'], now_iso(), tid))
     billing_labels = {'none':'No Facturado','invoiced':'Facturado-Esperando Pago','paid':'Pagado'}
     details = []
     if old and old['billing_amount'] != new_amount:
@@ -800,6 +824,21 @@ def dashboard():
         'invoiced': billing['invoiced'],
         'paid': billing['paid']
     }
+    # Yearly payment breakdown
+    yearly_rows = rows_to_list(db.execute("""
+        SELECT
+            year,
+            SUM(amount) as total
+        FROM (
+            SELECT SUBSTR(paid_date1, 1, 4) as year, billing_amount as amount FROM tasks WHERE billing_status='paid' AND paid_date1 != ''
+            UNION ALL
+            SELECT SUBSTR(paid_date2, 1, 4) as year, billing_amount2 as amount FROM tasks WHERE billing_status2='paid' AND paid_date2 != ''
+        )
+        WHERE year != ''
+        GROUP BY year
+        ORDER BY year DESC
+    """).fetchall())
+    stats['billing']['yearly'] = yearly_rows
     return jsonify(stats)
 
 # ──────────────────────────────────────────────────
@@ -840,6 +879,8 @@ def project_report(pid):
             sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
             lbl1 = f' <span style="color:#8896A6;font-size:11px;">({t.get("billing_label","")})</span>' if t.get('billing_label') else ''
             lbl2 = f' <span style="color:#8896A6;font-size:11px;">({t.get("billing_label2","")})</span>' if t.get('billing_label2') else ''
+            pd1 = f' <span style="color:#16A34A;font-size:10px;">({t.get("paid_date1","")})</span>' if t.get('paid_date1') else ''
+            pd2 = f' <span style="color:#16A34A;font-size:10px;">({t.get("paid_date2","")})</span>' if t.get('paid_date2') else ''
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
@@ -848,13 +889,22 @@ def project_report(pid):
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{t['name']}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount',0):,}{lbl1}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status','none'),'?')}{pd1}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount2',0):,}{lbl2}</td>
-                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status2','none'),'?')}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status2','none'),'?')}{pd2}</td>
             </tr>'''
             if notes_html:
                 rows += f'<tr><td colspan="6" style="padding:4px 12px 8px 24px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
         return rows
+
+    # Yearly breakdown for project report
+    proj_yearly = rows_to_list(db.execute("""
+        SELECT year, SUM(amount) as total FROM (
+            SELECT SUBSTR(paid_date1, 1, 4) as year, billing_amount as amount FROM tasks WHERE project_id=? AND billing_status='paid' AND paid_date1 != ''
+            UNION ALL
+            SELECT SUBSTR(paid_date2, 1, 4) as year, billing_amount2 as amount FROM tasks WHERE project_id=? AND billing_status2='paid' AND paid_date2 != ''
+        ) WHERE year != '' GROUP BY year ORDER BY year DESC
+    """, (pid, pid)).fetchall())
 
     html = f'''<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
@@ -912,6 +962,13 @@ def project_report(pid):
   <div class="summary-card"><div class="num" style="color:#8896A6;">${not_billed:,}</div><div class="label">No Facturado</div></div>
   <div class="summary-card"><div class="num" style="color:#D97706;">${invoiced:,}</div><div class="label">Facturado</div></div>
   <div class="summary-card"><div class="num" style="color:#16A34A;">${paid:,}</div><div class="label">Pagado</div></div>
+</div>'''
+
+    if proj_yearly:
+        yearly_cards = ''.join(f'<div style="text-align:center;padding:10px 18px;background:#F0FDF4;border:1px solid rgba(22,163,74,0.15);border-radius:8px;"><div style="font-size:18px;font-weight:700;color:#16A34A;">${y["total"]:,}</div><div style="font-size:11px;color:#8896A6;margin-top:2px;">{y["year"]}</div></div>' for y in proj_yearly)
+        html += f'''<div style="margin-bottom:24px;">
+  <h3 style="font-size:13px;text-transform:uppercase;letter-spacing:0.5px;color:#8896A6;margin-bottom:10px;">Pagos por Año</h3>
+  <div style="display:flex;flex-wrap:wrap;gap:10px;">{yearly_cards}</div>
 </div>'''
 
     if plan_tasks:
@@ -992,6 +1049,8 @@ def client_report(cid):
             sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
             lbl1 = f' <span style="color:#8896A6;font-size:10px;">({t.get("billing_label","")})</span>' if t.get('billing_label') else ''
             lbl2 = f' <span style="color:#8896A6;font-size:10px;">({t.get("billing_label2","")})</span>' if t.get('billing_label2') else ''
+            pd1 = f' <span style="color:#16A34A;font-size:9px;">({t.get("paid_date1","")})</span>' if t.get('paid_date1') else ''
+            pd2 = f' <span style="color:#16A34A;font-size:9px;">({t.get("paid_date2","")})</span>' if t.get('paid_date2') else ''
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
@@ -1000,9 +1059,9 @@ def client_report(cid):
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{t['name']}</td>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount',0):,}{lbl1}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status','none'),'?')}{pd1}</td>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount2',0):,}{lbl2}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status2','none'),'?')}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status2','none'),'?')}{pd2}</td>
             </tr>'''
             if notes_html:
                 rows += f'<tr><td colspan="6" style="padding:2px 10px 6px 20px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'

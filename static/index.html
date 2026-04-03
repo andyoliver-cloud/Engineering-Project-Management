@@ -256,6 +256,12 @@ select {
   color: var(--text-dim);
 }
 .billing-label-input:focus { outline: none; border-color: var(--border-focus); }
+.billing-date-input {
+  width: 130px; padding: 3px 6px; font-size: 13px; font-family: var(--mono);
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--green);
+}
+.billing-date-input:focus { outline: none; border-color: var(--border-focus); }
 .reorder-btns { display: flex; flex-direction: column; gap: 1px; margin-left: 4px; }
 .reorder-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
@@ -694,6 +700,16 @@ async function renderDashboard() {
           <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Pagado</div>
         </div>
       </div>
+      ${(d.billing.yearly && d.billing.yearly.length) ? `
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:14px;font-weight:600;color:var(--text-dim);margin-bottom:10px;">Pagos por Año</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${d.billing.yearly.map(y => `<div style="text-align:center;padding:10px 18px;background:var(--green-bg);border:1px solid rgba(22,163,74,0.15);border-radius:var(--radius);">
+            <div style="font-size:20px;font-weight:700;color:var(--green);">$${fmtMoney(y.total)}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${y.year}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
     </div>
     <div class="detail-section">
       <div class="section-title">Actividad Reciente</div>
@@ -904,6 +920,16 @@ async function renderClientDetail() {
           <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">Pagado</div>
         </div>
       </div>
+      ${(cl.billing.yearly && cl.billing.yearly.length) ? `
+      <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px;">
+        <div style="font-size:14px;font-weight:600;color:var(--text-dim);margin-bottom:10px;">Pagos por Año</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          ${cl.billing.yearly.map(y => `<div style="text-align:center;padding:10px 18px;background:var(--green-bg);border:1px solid rgba(22,163,74,0.15);border-radius:var(--radius);">
+            <div style="font-size:20px;font-weight:700;color:var(--green);">$${fmtMoney(y.total)}</div>
+            <div style="font-size:13px;color:var(--text-muted);margin-top:2px;">${y.year}</div>
+          </div>`).join('')}
+        </div>
+      </div>` : ''}
     </div>
     <div class="page-header">
       <div class="section-title" style="margin:0;">Propiedades / Proyectos</div>
@@ -1039,9 +1065,11 @@ async function renderProjectDetail() {
       const bStatus = t.billing_status || 'none';
       const bAmount = t.billing_amount || 0;
       const bLabel = t.billing_label || '';
+      const bPaidDate1 = t.paid_date1 || '';
       const bStatus2 = t.billing_status2 || 'none';
       const bAmount2 = t.billing_amount2 || 0;
       const bLabel2 = t.billing_label2 || '';
+      const bPaidDate2 = t.paid_date2 || '';
       html += `<div class="task-item" id="task_${t.id}">
         <div class="task-header">
           <div class="reorder-btns">
@@ -1064,11 +1092,12 @@ async function renderProjectDetail() {
             oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
           <input type="text" class="billing-label-input" id="bl_${t.id}" value="${esc(bLabel)}" placeholder="Detalle…"
             oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
-          <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="markProjectDirty()">
+          <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="markProjectDirty();togglePaidDate('${t.id}',1)">
             <option value="none" ${bStatus==='none'?'selected':''}>No Facturado</option>
             <option value="invoiced" ${bStatus==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
             <option value="paid" ${bStatus==='paid'?'selected':''}>Pagado</option>
           </select>
+          <input type="date" class="billing-date-input" id="pd_${t.id}" value="${esc(bPaidDate1)}" style="display:${bStatus==='paid'?'inline-block':'none'}" onchange="markProjectDirty()" title="Fecha de pago">
         </div>
         <div class="billing-row">
           <span style="font-size:14px;color:var(--text-dim);">Monto 2:</span>
@@ -1076,11 +1105,12 @@ async function renderProjectDetail() {
             oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
           <input type="text" class="billing-label-input" id="bl2_${t.id}" value="${esc(bLabel2)}" placeholder="Detalle…"
             oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
-          <select class="billing-select billing-${bStatus2}" id="bs2_${t.id}" onchange="markProjectDirty()">
+          <select class="billing-select billing-${bStatus2}" id="bs2_${t.id}" onchange="markProjectDirty();togglePaidDate('${t.id}',2)">
             <option value="none" ${bStatus2==='none'?'selected':''}>No Facturado</option>
             <option value="invoiced" ${bStatus2==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
             <option value="paid" ${bStatus2==='paid'?'selected':''}>Pagado</option>
           </select>
+          <input type="date" class="billing-date-input" id="pd2_${t.id}" value="${esc(bPaidDate2)}" style="display:${bStatus2==='paid'?'inline-block':'none'}" onchange="markProjectDirty()" title="Fecha de pago">
         </div>
         ${updLabel}
         <div class="task-notes">
@@ -1133,6 +1163,20 @@ function markProjectDirty() {
   if (btn) btn.classList.add('visible');
 }
 
+function togglePaidDate(taskId, slot) {
+  const sel = document.getElementById(slot === 1 ? 'bs_' + taskId : 'bs2_' + taskId);
+  const dateEl = document.getElementById(slot === 1 ? 'pd_' + taskId : 'pd2_' + taskId);
+  if (!sel || !dateEl) return;
+  if (sel.value === 'paid') {
+    dateEl.style.display = 'inline-block';
+    if (!dateEl.value) dateEl.value = new Date().toISOString().slice(0, 10);
+    markProjectDirty();
+  } else {
+    dateEl.style.display = 'none';
+    dateEl.value = '';
+  }
+}
+
 async function saveAllProjectChanges(skipReload) {
   // Collect all changed statuses
   const statusSelects = document.querySelectorAll('select[data-field="status"]');
@@ -1151,13 +1195,15 @@ async function saveAllProjectChanges(skipReload) {
     const amount = parseInt(rawAmount) || 0;
     const status = document.getElementById('bs_' + id).value;
     const label = document.getElementById('bl_' + id).value.trim();
+    const paidDate1 = (document.getElementById('pd_' + id) || {}).value || '';
     const rawAmount2 = document.getElementById('ba2_' + id).value.replace(/[^0-9]/g, '');
     const amount2 = parseInt(rawAmount2) || 0;
     const status2 = document.getElementById('bs2_' + id).value;
     const label2 = document.getElementById('bl2_' + id).value.trim();
+    const paidDate2 = (document.getElementById('pd2_' + id) || {}).value || '';
     await api(`/api/tasks/${id}/billing`, 'PUT', {
-      billing_amount: amount, billing_status: status, billing_label: label,
-      billing_amount2: amount2, billing_status2: status2, billing_label2: label2
+      billing_amount: amount, billing_status: status, billing_label: label, paid_date1: paidDate1,
+      billing_amount2: amount2, billing_status2: status2, billing_label2: label2, paid_date2: paidDate2
     });
   }
   _projectDirty = false;
