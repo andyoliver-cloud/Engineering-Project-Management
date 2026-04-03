@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.0.2"
 
 import os
 import sqlite3
@@ -279,6 +279,23 @@ def login():
     session['user_id'] = user['id']
     return jsonify({'ok': True, 'user': {'id': user['id'], 'name': user['name'], 'username': user['username'], 'role': user['role']}})
 
+@app.route('/api/auth/zoom', methods=['GET'])
+@login_required
+def get_zoom():
+    db = get_db()
+    row = db.execute("SELECT value FROM settings WHERE key=?", (f"zoom_{g.user['id']}",)).fetchone()
+    return jsonify({'zoom': float(row['value']) if row else 1.0})
+
+@app.route('/api/auth/zoom', methods=['PUT'])
+@login_required
+def set_zoom():
+    data = request.json
+    zoom = max(0.5, min(4.0, float(data.get('zoom', 1.0))))
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (f"zoom_{g.user['id']}", str(zoom)))
+    db.commit()
+    return jsonify({'ok': True, 'zoom': zoom})
+
 @app.route('/api/auth/logout', methods=['POST'])
 def logout_route():
     session.pop('user_id', None)
@@ -318,7 +335,7 @@ def get_client(cid):
     cl = row_to_dict(db.execute("SELECT * FROM clients WHERE id=?", (cid,)).fetchone())
     if not cl:
         return jsonify({'error': 'Cliente no encontrado'}), 404
-    cl['projects'] = rows_to_list(db.execute("SELECT * FROM projects WHERE client_id=? ORDER BY created_at DESC", (cid,)).fetchall())
+    cl['projects'] = rows_to_list(db.execute("SELECT * FROM projects WHERE client_id=? ORDER BY name COLLATE NOCASE", (cid,)).fetchall())
     for pr in cl['projects']:
         total = db.execute("SELECT COUNT(*) as c FROM tasks WHERE project_id=?", (pr['id'],)).fetchone()['c']
         done = db.execute("SELECT COUNT(*) as c FROM tasks WHERE project_id=? AND status='completed'", (pr['id'],)).fetchone()['c']

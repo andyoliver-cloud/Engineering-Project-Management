@@ -365,6 +365,30 @@ select {
 .section-permisos .section-title { color: var(--permit-accent); }
 .sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 @media (max-width: 960px) { .sections-grid { grid-template-columns: 1fr; } }
+.zoom-controls {
+  position: fixed; top: 12px; right: 16px; z-index: 200;
+  display: flex; align-items: center; gap: 6px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 4px 10px; box-shadow: var(--shadow);
+  font-size: 14px; font-weight: 600; color: var(--text-dim);
+}
+.zoom-controls button {
+  background: none; border: none; cursor: pointer; font-size: 18px; font-weight: 700;
+  color: var(--accent); width: 28px; height: 28px; border-radius: 4px;
+  display: flex; align-items: center; justify-content: center; font-family: var(--font);
+}
+.zoom-controls button:hover { background: var(--accent-glow); }
+.zoom-controls .zoom-level { min-width: 38px; text-align: center; font-family: var(--mono); font-size: 13px; }
+
+.floating-save {
+  position: fixed; bottom: 32px; right: 32px; z-index: 900;
+  background: var(--accent); color: #fff; border: none; border-radius: var(--radius-lg);
+  padding: 14px 28px; font-size: 16px; font-weight: 700; font-family: var(--font);
+  cursor: pointer; box-shadow: 0 4px 20px rgba(0,0,0,0.2); transition: all 0.2s;
+  display: none;
+}
+.floating-save:hover { background: var(--accent-hover); transform: translateY(-2px); }
+.floating-save.visible { display: flex; align-items: center; gap: 8px; }
 
 .icon-btn {
   background: none; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer;
@@ -453,6 +477,11 @@ select {
   </aside>
 
   <main class="main" id="mainContent"></main>
+  <div class="zoom-controls hidden" id="zoomControls">
+    <button onclick="adjustZoom(-0.1)" title="Reducir">−</button>
+    <span class="zoom-level" id="zoomLevel">1.0x</span>
+    <button onclick="adjustZoom(0.1)" title="Aumentar">+</button>
+  </div>
 </div>
 
 <div id="modalContainer"></div>
@@ -523,6 +552,28 @@ async function handleLogout() {
   document.getElementById('loginPage').classList.remove('hidden');
 }
 
+let _currentZoom = 1.0;
+
+async function loadZoom() {
+  try {
+    const res = await api('/api/auth/zoom');
+    _currentZoom = res.zoom || 1.0;
+  } catch(e) { _currentZoom = 1.0; }
+  applyZoom();
+}
+
+function applyZoom() {
+  document.getElementById('appPage').style.zoom = _currentZoom;
+  const label = document.getElementById('zoomLevel');
+  if (label) label.textContent = _currentZoom.toFixed(1) + 'x';
+}
+
+async function adjustZoom(delta) {
+  _currentZoom = Math.round(Math.max(0.5, Math.min(4.0, _currentZoom + delta)) * 10) / 10;
+  applyZoom();
+  try { await api('/api/auth/zoom', 'PUT', { zoom: _currentZoom }); } catch(e) {}
+}
+
 function showApp() {
   document.getElementById('loginPage').classList.add('hidden');
   document.getElementById('appPage').classList.remove('hidden');
@@ -530,6 +581,8 @@ function showApp() {
   document.getElementById('userName').textContent = currentUser.name;
   document.getElementById('userRole').textContent = currentUser.role === 'admin' ? 'Administrador' : 'Usuario';
   document.getElementById('navAdmin').classList.toggle('hidden', currentUser.role !== 'admin');
+  document.getElementById('zoomControls').classList.remove('hidden');
+  loadZoom();
   startNotifications();
   navigate('dashboard');
 }
@@ -537,7 +590,33 @@ function showApp() {
 // ══════════════════════════════════════════════════
 //  NAVIGATION
 // ══════════════════════════════════════════════════
+let _projectDirty = false;
+
 function navigate(page, state={}) {
+  if (_projectDirty) {
+    const dialog = document.createElement('div');
+    dialog.className = 'modal-overlay';
+    dialog.innerHTML = `<div class="modal fade-in" style="text-align:center;max-width:380px;">
+      <p style="font-size:17px;font-weight:600;margin-bottom:18px;">¿Quieres guardar los cambios realizados?</p>
+      <div style="display:flex;gap:12px;justify-content:center;">
+        <button class="btn btn-primary" id="dirtyYes">Sí</button>
+        <button class="btn btn-secondary" id="dirtyNo">No</button>
+      </div>
+    </div>`;
+    document.getElementById('modalContainer').appendChild(dialog);
+    document.getElementById('dirtyYes').onclick = async () => {
+      dialog.remove();
+      await saveAllProjectChanges(true);
+      _projectDirty = false;
+      navigate(page, state);
+    };
+    document.getElementById('dirtyNo').onclick = () => {
+      dialog.remove();
+      _projectDirty = false;
+      navigate(page, state);
+    };
+    return;
+  }
   currentPage = page;
   viewState = state;
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
@@ -732,13 +811,21 @@ async function deleteClient(id) {
 //  CLIENT DETAIL
 // ══════════════════════════════════════════════════
 let _clientDetailCache = null;
-async function renderClientDetail() {
-  const cl = await api(`/api/clients/${viewState.clientId}`);
-  _clientDetailCache = cl;
-  let projHtml = '';
-  (cl.projects || []).forEach(pr => {
+let _projFilter = '';
+let _projLetter = '';
+
+function buildProjectCards(projects) {
+  let filtered = projects;
+  if (_projFilter) {
+    const q = _projFilter.toLowerCase();
+    filtered = filtered.filter(pr => pr.name.toLowerCase().includes(q) || (pr.property_address||'').toLowerCase().includes(q));
+  }
+  if (_projLetter) {
+    filtered = filtered.filter(pr => pr.name.charAt(0).toUpperCase() === _projLetter);
+  }
+  return filtered.map(pr => {
     const pct = pr.task_count ? Math.round(pr.done_count / pr.task_count * 100) : 0;
-    projHtml += `<div class="card" onclick="navigate('project-detail',{projectId:'${pr.id}'})">
+    return `<div class="card" onclick="navigate('project-detail',{projectId:'${pr.id}'})">
       <div class="card-title">${esc(pr.name)}</div>
       <div class="card-meta">${esc(pr.property_address || 'Sin dirección')}</div>
       <div style="margin-top:12px;">
@@ -751,7 +838,34 @@ async function renderClientDetail() {
         </div>
       </div>
     </div>`;
-  });
+  }).join('');
+}
+
+function filterProjects() {
+  _projFilter = document.getElementById('projSearch').value;
+  const grid = document.getElementById('projGrid');
+  const cards = buildProjectCards(_clientDetailCache.projects || []);
+  grid.innerHTML = cards || '<div class="empty-state"><p>No se encontraron proyectos.</p></div>';
+}
+
+function filterProjByLetter(letter, el) {
+  _projLetter = (_projLetter === letter) ? '' : letter;
+  _projFilter = document.getElementById('projSearch') ? document.getElementById('projSearch').value : '';
+  document.querySelectorAll('.proj-letter-picker span').forEach(s => s.classList.remove('active'));
+  if (_projLetter && el) el.classList.add('active');
+  const grid = document.getElementById('projGrid');
+  const cards = buildProjectCards(_clientDetailCache.projects || []);
+  grid.innerHTML = cards || '<div class="empty-state"><p>No se encontraron proyectos con esa letra.</p></div>';
+}
+
+async function renderClientDetail() {
+  const cl = await api(`/api/clients/${viewState.clientId}`);
+  _clientDetailCache = cl;
+  _projFilter = '';
+  _projLetter = '';
+  const projHtml = buildProjectCards(cl.projects || []);
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const letterHtml = letters.map(l => `<span onclick="filterProjByLetter('${l}',this)">${l}</span>`).join('');
 
   return `<div class="fade-in">
     <div class="breadcrumb"><a onclick="navigate('clients')">Clientes</a> / ${esc(cl.name)}</div>
@@ -794,8 +908,16 @@ async function renderClientDetail() {
       <div class="section-title" style="margin:0;">Propiedades / Proyectos</div>
       <button class="btn btn-primary btn-sm" onclick="openProjectModal('${cl.id}')">+ Nuevo Proyecto</button>
     </div>
-    ${projHtml ? `<div class="card-grid">${projHtml}</div>` :
-    '<div class="empty-state"><p>No hay proyectos para este cliente aún.</p></div>'}
+    <div class="search-bar-wrapper" style="margin-bottom:12px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" class="search-bar" id="projSearch" placeholder="Buscar proyecto por nombre o dirección..." oninput="filterProjects()">
+    </div>
+    <div class="clients-wrapper">
+      <div class="clients-main">
+        <div class="card-grid" id="projGrid">${projHtml || '<div class="empty-state"><p>No hay proyectos para este cliente aún.</p></div>'}</div>
+      </div>
+      <div class="letter-picker proj-letter-picker">${letterHtml}</div>
+    </div>
   </div>`;
 }
 
@@ -924,7 +1046,7 @@ async function renderProjectDetail() {
             <button class="reorder-btn" title="Bajar" onclick="reorderTask('${t.id}','down')">&#9660;</button>
           </div>
           <div class="task-name">${esc(t.name)}</div>
-          <select class="task-status status-${t.status}" onchange="changeStatus('${t.id}', this.value)">
+          <select class="task-status status-${t.status}" data-task-id="${t.id}" data-field="status" data-orig="${t.status}" onchange="markProjectDirty()">
             <option value="pending" ${t.status==='pending'?'selected':''}>Pendiente</option>
             <option value="in-progress" ${t.status==='in-progress'?'selected':''}>En Progreso</option>
             <option value="completed" ${t.status==='completed'?'selected':''}>Completada</option>
@@ -936,10 +1058,10 @@ async function renderProjectDetail() {
         <div class="billing-row">
           <span style="font-size:14px;color:var(--text-dim);">Monto 1:</span>
           <input type="text" class="billing-amount-input" id="ba_${t.id}" value="${bAmount ? '$' + bAmount.toLocaleString('en-US') : ''}" placeholder="$0"
-            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
+            oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
           <input type="text" class="billing-label-input" id="bl_${t.id}" value="${esc(bLabel)}" placeholder="Detalle…"
-            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
-          <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="saveBilling('${t.id}')">
+            oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
+          <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="markProjectDirty()">
             <option value="none" ${bStatus==='none'?'selected':''}>No Facturado</option>
             <option value="invoiced" ${bStatus==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
             <option value="paid" ${bStatus==='paid'?'selected':''}>Pagado</option>
@@ -948,10 +1070,10 @@ async function renderProjectDetail() {
         <div class="billing-row">
           <span style="font-size:14px;color:var(--text-dim);">Monto 2:</span>
           <input type="text" class="billing-amount-input" id="ba2_${t.id}" value="${bAmount2 ? '$' + bAmount2.toLocaleString('en-US') : ''}" placeholder="$0"
-            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
+            oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
           <input type="text" class="billing-label-input" id="bl2_${t.id}" value="${esc(bLabel2)}" placeholder="Detalle…"
-            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
-          <select class="billing-select billing-${bStatus2}" id="bs2_${t.id}" onchange="saveBilling('${t.id}')">
+            oninput="markProjectDirty()" onkeydown="if(event.key==='Enter'){this.blur();}">
+          <select class="billing-select billing-${bStatus2}" id="bs2_${t.id}" onchange="markProjectDirty()">
             <option value="none" ${bStatus2==='none'?'selected':''}>No Facturado</option>
             <option value="invoiced" ${bStatus2==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
             <option value="paid" ${bStatus2==='paid'?'selected':''}>Pagado</option>
@@ -994,7 +1116,50 @@ async function renderProjectDetail() {
     </div>
     ${!planTasks.length && !permitTasks.length ? '<div class="empty-state"><p>Sin tareas aún. Añade tareas de planos y permisos.</p></div>' : ''}
     ${renderProjectLog(pr.log || [])}
+    <button class="floating-save" id="floatingSaveBtn" onclick="saveAllProjectChanges()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+      Guardar Cambios
+    </button>
   </div>`;
+}
+
+function markProjectDirty() {
+  _projectDirty = true;
+  const btn = document.getElementById('floatingSaveBtn');
+  if (btn) btn.classList.add('visible');
+}
+
+async function saveAllProjectChanges(skipReload) {
+  // Collect all changed statuses
+  const statusSelects = document.querySelectorAll('select[data-field="status"]');
+  for (const sel of statusSelects) {
+    if (sel.value !== sel.dataset.orig) {
+      await api(`/api/tasks/${sel.dataset.taskId}/status`, 'PUT', { status: sel.value });
+    }
+  }
+  // Collect all billing changes - save every task that has billing inputs
+  const taskItems = document.querySelectorAll('.task-item');
+  for (const item of taskItems) {
+    const id = item.id.replace('task_', '');
+    const ba = document.getElementById('ba_' + id);
+    if (!ba) continue;
+    const rawAmount = ba.value.replace(/[^0-9]/g, '');
+    const amount = parseInt(rawAmount) || 0;
+    const status = document.getElementById('bs_' + id).value;
+    const label = document.getElementById('bl_' + id).value.trim();
+    const rawAmount2 = document.getElementById('ba2_' + id).value.replace(/[^0-9]/g, '');
+    const amount2 = parseInt(rawAmount2) || 0;
+    const status2 = document.getElementById('bs2_' + id).value;
+    const label2 = document.getElementById('bl2_' + id).value.trim();
+    await api(`/api/tasks/${id}/billing`, 'PUT', {
+      billing_amount: amount, billing_status: status, billing_label: label,
+      billing_amount2: amount2, billing_status2: status2, billing_label2: label2
+    });
+  }
+  _projectDirty = false;
+  const btn = document.getElementById('floatingSaveBtn');
+  if (btn) btn.classList.remove('visible');
+  if (!skipReload) renderPage();
 }
 
 async function changeStatus(taskId, newStatus) {
