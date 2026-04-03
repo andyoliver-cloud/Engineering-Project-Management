@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "1.0.2"
+APP_VERSION = "1.0.3"
 
 import os
 import sqlite3
@@ -136,6 +136,15 @@ def init_db():
             detail TEXT DEFAULT '',
             project_id TEXT DEFAULT '',
             created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS project_notes (
+            id TEXT PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            text TEXT NOT NULL,
+            author TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
         );
     """)
     # Default settings
@@ -423,13 +432,21 @@ def get_project(pid):
     pr['tasks'] = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, sort_order, created_at", (pid,)).fetchall())
     for t in pr['tasks']:
         t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC", (t['id'],)).fetchall())
-    # Project-level activity log
-    pr['log'] = rows_to_list(db.execute("""
-        SELECT h.*, t.name as task_name FROM task_history h
+    # Project-level general notes
+    pr['project_notes'] = rows_to_list(db.execute("SELECT * FROM project_notes WHERE project_id=? ORDER BY created_at DESC", (pid,)).fetchall())
+    # Project-level activity log (task history + project notes combined)
+    task_log = rows_to_list(db.execute("""
+        SELECT h.id, h.user_name, h.action, h.detail, h.created_at, t.name as task_name FROM task_history h
         JOIN tasks t ON h.task_id = t.id
         WHERE t.project_id=?
-        ORDER BY h.created_at DESC LIMIT 50
     """, (pid,)).fetchall())
+    note_log = rows_to_list(db.execute("""
+        SELECT id, author as user_name, 'añadió nota general' as action, text as detail, created_at, 'Proyecto' as task_name
+        FROM project_notes WHERE project_id=?
+    """, (pid,)).fetchall())
+    combined = task_log + note_log
+    combined.sort(key=lambda x: x['created_at'], reverse=True)
+    pr['log'] = combined[:50]
     return jsonify(pr)
 
 @app.route('/api/projects/<pid>', methods=['PUT'])
@@ -613,6 +630,49 @@ def delete_note(nid):
     return jsonify({'ok': True})
 
 # ──────────────────────────────────────────────────
+#  PROJECT NOTES (Notas Generales)
+# ──────────────────────────────────────────────────
+
+@app.route('/api/projects/<pid>/notes', methods=['GET'])
+@login_required
+def get_project_notes(pid):
+    db = get_db()
+    notes = rows_to_list(db.execute("SELECT * FROM project_notes WHERE project_id=? ORDER BY created_at DESC", (pid,)).fetchall())
+    return jsonify(notes)
+
+@app.route('/api/projects/<pid>/notes', methods=['POST'])
+@login_required
+def create_project_note(pid):
+    data = request.json
+    text = (data.get('text') or '').strip()
+    if not text:
+        return jsonify({'error': 'Texto es requerido'}), 400
+    db = get_db()
+    pr = row_to_dict(db.execute("SELECT name FROM projects WHERE id=?", (pid,)).fetchone())
+    if not pr:
+        return jsonify({'error': 'Proyecto no encontrado'}), 404
+    nid = gen_id()
+    ts = now_iso()
+    db.execute("INSERT INTO project_notes (id, project_id, text, author, created_at) VALUES (?,?,?,?,?)",
+               (nid, pid, text, g.user['name'], ts))
+    create_notification(db, g.user['name'], 'añadió nota general', f"{pr['name']}: {text[:80]}", pid)
+    db.commit()
+    return jsonify({'ok': True, 'id': nid})
+
+@app.route('/api/project-notes/<nid>', methods=['DELETE'])
+@login_required
+def delete_project_note(nid):
+    db = get_db()
+    note = row_to_dict(db.execute("SELECT * FROM project_notes WHERE id=?", (nid,)).fetchone())
+    if not note:
+        return jsonify({'error': 'Nota no encontrada'}), 404
+    if note['author'] != g.user['name'] and g.user['role'] != 'admin':
+        return jsonify({'error': 'Solo puedes eliminar tus propias notas'}), 403
+    db.execute("DELETE FROM project_notes WHERE id=?", (nid,))
+    db.commit()
+    return jsonify({'ok': True})
+
+# ──────────────────────────────────────────────────
 #  ADMIN
 # ──────────────────────────────────────────────────
 
@@ -701,15 +761,24 @@ def dashboard():
         'tasks_pending': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='pending'").fetchone()['c'],
         'tasks_in_progress': db.execute("SELECT COUNT(*) as c FROM tasks WHERE status='in-progress'").fetchone()['c'],
     }
-    recent = rows_to_list(db.execute("""
-        SELECT n.*, t.name as task_name, p.name as project_name, c.name as client_name
+    task_notes = rows_to_list(db.execute("""
+        SELECT n.*, t.name as task_name, p.name as project_name, c.name as client_name, 'task' as note_type
         FROM notes n
         JOIN tasks t ON n.task_id = t.id
         JOIN projects p ON t.project_id = p.id
         JOIN clients c ON p.client_id = c.id
         ORDER BY n.created_at DESC LIMIT 10
     """).fetchall())
-    stats['recent_notes'] = recent
+    proj_notes = rows_to_list(db.execute("""
+        SELECT pn.*, 'Nota General' as task_name, p.name as project_name, c.name as client_name, 'project' as note_type
+        FROM project_notes pn
+        JOIN projects p ON pn.project_id = p.id
+        JOIN clients c ON p.client_id = c.id
+        ORDER BY pn.created_at DESC LIMIT 10
+    """).fetchall())
+    combined_notes = task_notes + proj_notes
+    combined_notes.sort(key=lambda x: x['created_at'], reverse=True)
+    stats['recent_notes'] = combined_notes[:10]
     # Billing summary
     billing = db.execute("""
         SELECT
@@ -742,6 +811,7 @@ def project_report(pid):
     if not pr:
         return "Proyecto no encontrado", 404
     cl = row_to_dict(db.execute("SELECT * FROM clients WHERE id=?", (pr['client_id'],)).fetchone())
+    proj_notes = rows_to_list(db.execute("SELECT * FROM project_notes WHERE project_id=? ORDER BY created_at DESC", (pid,)).fetchall())
     tasks = rows_to_list(db.execute("SELECT * FROM tasks WHERE project_id=? ORDER BY category, sort_order, created_at", (pid,)).fetchall())
     for t in tasks:
         t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC LIMIT 3", (t['id'],)).fetchall())
@@ -855,6 +925,16 @@ def project_report(pid):
   <tbody>{task_rows(permit_tasks)}</tbody></table>
 </div>'''
 
+    if proj_notes:
+        pn_html = ''
+        for pn in proj_notes:
+            pndate = pn.get("created_at","")[:10] if pn.get("created_at") else ""
+            pn_html += f'<div style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;"><b>{pn["author"]}</b> <span style="color:#8896A6;font-size:11px;">({pndate})</span>: {pn["text"][:200]}</div>'
+        html += f'''<div class="section">
+  <h2>Notas Generales</h2>
+  {pn_html}
+</div>'''
+
     html += f'''<div class="footer">
   CivilPM — Reporte generado el {datetime.now().strftime('%d/%m/%Y %H:%M')}
 </div>
@@ -881,6 +961,7 @@ def client_report(cid):
         if total > 0 and done == total:
             continue  # skip 100% completed
         pr['tasks'] = tasks
+        pr['project_notes'] = rows_to_list(db.execute("SELECT * FROM project_notes WHERE project_id=? ORDER BY created_at DESC LIMIT 5", (pr['id'],)).fetchall())
         pr['total'] = total
         pr['done'] = done
         pr['pct'] = round(done / total * 100) if total else 0
@@ -967,6 +1048,14 @@ def client_report(cid):
       <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto 2</th>
       <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact. 2</th>
     </tr></thead><tbody>{task_rows(permit_tasks)}</tbody></table></div>'''
+        if pr.get('project_notes'):
+            pn_html = ''
+            for pn in pr['project_notes']:
+                pndate = pn.get("created_at","")[:10] if pn.get("created_at") else ""
+                pn_html += f'<div style="font-size:11px;color:#4A5568;padding:3px 0;"><b>{pn["author"]}</b> <span style="color:#8896A6;">({pndate})</span>: {pn["text"][:150]}</div>'
+            projects_html += f'''<div style="margin-top:10px;">
+    <h4 style="font-size:13px;color:#4A5568;border-bottom:1px solid #E5E7EB;padding-bottom:4px;margin:0 0 6px 0;">Notas Generales</h4>
+    {pn_html}</div>'''
         projects_html += '</div>'
 
     html = f'''<!DOCTYPE html>

@@ -646,10 +646,13 @@ async function renderDashboard() {
   const d = await api('/api/dashboard');
   let notesHtml = '';
   (d.recent_notes || []).forEach(n => {
+    const location = n.note_type === 'project'
+      ? `${esc(n.project_name)} → <em>Nota General</em>`
+      : `${esc(n.project_name)} → ${esc(n.task_name)}`;
     notesHtml += `<div class="note-item">
       <div class="note-header"><span class="note-author">${esc(n.author)}</span><span class="note-date">${fmtDate(n.created_at)}</span></div>
       <div class="note-body">${esc(n.text)}</div>
-      <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${esc(n.project_name)} → ${esc(n.task_name)}</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-top:4px;">${location}</div>
     </div>`;
   });
 
@@ -1115,6 +1118,7 @@ async function renderProjectDetail() {
       ${renderSection('Permisos', permitTasks, permitIcon, 'section-permisos')}
     </div>
     ${!planTasks.length && !permitTasks.length ? '<div class="empty-state"><p>Sin tareas aún. Añade tareas de planos y permisos.</p></div>' : ''}
+    ${renderProjectNotes(pr.id, pr.project_notes || [])}
     ${renderProjectLog(pr.log || [])}
     <button class="floating-save" id="floatingSaveBtn" onclick="saveAllProjectChanges()">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
@@ -1230,6 +1234,43 @@ async function saveBilling(taskId) {
 
 async function reorderTask(taskId, direction) {
   await api(`/api/tasks/${taskId}/reorder`, 'PUT', { direction });
+  renderPage();
+}
+
+function renderProjectNotes(projectId, notes) {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  let notesHtml = notes.map(n => {
+    const canDelete = (n.author === currentUser.name) || isAdmin;
+    const deleteBtn = canDelete
+      ? ` <button class="icon-btn danger" style="display:inline;padding:2px 4px;vertical-align:middle;" title="Eliminar nota" onclick="deleteProjectNote('${n.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>` : '';
+    return `<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:14px;">
+      <strong>${esc(n.author)}</strong> <span style="color:var(--text-muted);font-size:12px;">${fmtDate(n.created_at)}</span>${deleteBtn}
+      <div style="margin-top:4px;color:var(--text-dim);">${esc(n.text)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="detail-section" style="margin-top:24px;">
+    <div class="section-title">Notas Generales</div>
+    ${notesHtml}
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <input type="text" id="projNote_${projectId}" placeholder="Escribe una nota general del proyecto…" style="flex:1;">
+      <button class="btn btn-primary btn-sm" onclick="addProjectNote('${projectId}')">Añadir Nota</button>
+    </div>
+  </div>`;
+}
+
+async function addProjectNote(projectId) {
+  const el = document.getElementById('projNote_' + projectId);
+  const text = el.value.trim();
+  if (!text) return;
+  await api(`/api/projects/${projectId}/notes`, 'POST', { text });
+  renderPage();
+}
+
+async function deleteProjectNote(noteId) {
+  if (!confirm('¿Eliminar esta nota?')) return;
+  await api(`/api/project-notes/${noteId}`, 'DELETE');
   renderPage();
 }
 
