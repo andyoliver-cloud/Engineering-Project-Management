@@ -365,20 +365,18 @@ select {
 .section-permisos .section-title { color: var(--permit-accent); }
 .sections-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
 @media (max-width: 960px) { .sections-grid { grid-template-columns: 1fr; } }
-.zoom-controls {
-  position: fixed; top: 12px; right: 16px; z-index: 200;
-  display: flex; align-items: center; gap: 6px;
-  background: var(--bg-card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 4px 10px; box-shadow: var(--shadow);
+.sidebar-zoom {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 20px; border-top: 1px solid var(--border);
   font-size: 14px; font-weight: 600; color: var(--text-dim);
 }
-.zoom-controls button {
+.sidebar-zoom button {
   background: none; border: none; cursor: pointer; font-size: 18px; font-weight: 700;
   color: var(--accent); width: 28px; height: 28px; border-radius: 4px;
   display: flex; align-items: center; justify-content: center; font-family: var(--font);
 }
-.zoom-controls button:hover { background: var(--accent-glow); }
-.zoom-controls .zoom-level { min-width: 38px; text-align: center; font-family: var(--mono); font-size: 13px; }
+.sidebar-zoom button:hover { background: var(--accent-glow); }
+.sidebar-zoom .zoom-level { min-width: 38px; text-align: center; font-family: var(--mono); font-size: 13px; }
 
 .floating-save {
   position: fixed; bottom: 32px; right: 32px; z-index: 900;
@@ -465,6 +463,11 @@ select {
         Administración
       </div>
     </nav>
+    <div class="sidebar-zoom hidden" id="zoomControls">
+      <button onclick="adjustZoom(-0.1)" title="Reducir">−</button>
+      <span class="zoom-level" id="zoomLevel">1.0x</span>
+      <button onclick="adjustZoom(0.1)" title="Aumentar">+</button>
+    </div>
     <div class="sidebar-footer">
       <div class="sidebar-user">
         <div class="user-avatar" id="userAvatar"></div>
@@ -477,11 +480,6 @@ select {
   </aside>
 
   <main class="main" id="mainContent"></main>
-  <div class="zoom-controls hidden" id="zoomControls">
-    <button onclick="adjustZoom(-0.1)" title="Reducir">−</button>
-    <span class="zoom-level" id="zoomLevel">1.0x</span>
-    <button onclick="adjustZoom(0.1)" title="Aumentar">+</button>
-  </div>
 </div>
 
 <div id="modalContainer"></div>
