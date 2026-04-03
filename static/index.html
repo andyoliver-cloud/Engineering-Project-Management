@@ -951,6 +951,7 @@ function openProjectModal(clientId) {
     <div class="modal-title">Nuevo Proyecto</div>
     <div class="form-group"><label>Nombre del Proyecto / Propiedad *</label><input type="text" id="mProjName" placeholder="Ej: Remodelación Residencial – Calle Sol 123"></div>
     <div class="form-group"><label>Dirección de la Propiedad</label><input type="text" id="mProjAddr" placeholder="Dirección física de la propiedad"></div>
+    <div class="form-group"><label>Catastro</label><input type="text" id="mProjCatastro" placeholder="Número de catastro"></div>
     <div class="checklist">
       <div class="checklist-title">¿Qué planos necesita este proyecto?</div>
       ${plansHtml}
@@ -990,6 +991,7 @@ async function saveProject(clientId) {
   const name = document.getElementById('mProjName').value.trim();
   if (!name) return alert('El nombre del proyecto es requerido');
   const address = document.getElementById('mProjAddr').value.trim();
+  const catastro = document.getElementById('mProjCatastro').value.trim();
   const modal = document.getElementById('modalContainer');
   const tasks = [];
   modal.querySelectorAll('.checklist').forEach(cl => {
@@ -998,7 +1000,7 @@ async function saveProject(clientId) {
       tasks.push({ name: ch.value, category: isPermit ? 'permit' : 'plan' });
     });
   });
-  const res = await api('/api/projects', 'POST', { client_id: clientId, name, property_address: address, tasks });
+  const res = await api('/api/projects', 'POST', { client_id: clientId, name, property_address: address, catastro, tasks });
   closeModal();
   navigate('project-detail', { projectId: res.id });
 }
@@ -1104,7 +1106,7 @@ async function renderProjectDetail() {
     <div class="page-header">
       <div>
         <div class="page-title">${esc(pr.name)}</div>
-        <div style="font-size:15px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}</div>
+        <div style="font-size:15px;color:var(--text-dim);margin-top:2px;">${esc(pr.property_address || 'Sin dirección')}${pr.catastro ? ' — Catastro: ' + esc(pr.catastro) : ''}</div>
       </div>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-secondary btn-sm" onclick="openEditProjectModal('${pr.id}')">Editar Proyecto</button>
@@ -1197,6 +1199,7 @@ async function openEditProjectModal(projectId) {
     <h3 style="margin:0 0 16px 0;">Editar Proyecto</h3>
     <div class="form-group"><label>Nombre del Proyecto</label><input id="edit-proj-name" class="form-control" value="${esc(pr.name)}"></div>
     <div class="form-group"><label>Dirección</label><input id="edit-proj-addr" class="form-control" value="${esc(pr.property_address||'')}"></div>
+    <div class="form-group"><label>Catastro</label><input id="edit-proj-catastro" class="form-control" value="${esc(pr.catastro||'')}"></div>
     <button class="btn btn-primary" onclick="saveProjectEdit('${projectId}')">Guardar Cambios</button>
   `);
 }
@@ -1204,8 +1207,9 @@ async function openEditProjectModal(projectId) {
 async function saveProjectEdit(projectId) {
   const name = document.getElementById('edit-proj-name').value.trim();
   const address = document.getElementById('edit-proj-addr').value.trim();
+  const catastro = document.getElementById('edit-proj-catastro').value.trim();
   if (!name) return alert('El nombre es requerido');
-  await api(`/api/projects/${projectId}`, 'PUT', { name, property_address: address });
+  await api(`/api/projects/${projectId}`, 'PUT', { name, property_address: address, catastro });
   closeModal();
   navigate('project-detail', { projectId });
 }
@@ -1426,7 +1430,7 @@ async function resetPassword(userId, userName) {
 //  MODAL
 // ══════════════════════════════════════════════════
 function showModal(html) {
-  document.getElementById('modalContainer').innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()"><div class="modal fade-in">${html}</div></div>`;
+  document.getElementById('modalContainer').innerHTML = `<div class="modal-overlay"><div class="modal fade-in">${html}</div></div>`;
 }
 function closeModal() { document.getElementById('modalContainer').innerHTML = ''; }
 

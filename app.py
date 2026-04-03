@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "1.0.3"
+APP_VERSION = "1.0.4"
 
 import os
 import sqlite3
@@ -167,6 +167,9 @@ def init_db():
         db.execute("ALTER TABLE tasks ADD COLUMN billing_label2 TEXT DEFAULT ''")
     if 'sort_order' not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
+    proj_cols = [r[1] for r in db.execute("PRAGMA table_info(projects)").fetchall()]
+    if 'catastro' not in proj_cols:
+        db.execute("ALTER TABLE projects ADD COLUMN catastro TEXT DEFAULT ''")
     db.commit()
     db.close()
 
@@ -408,8 +411,8 @@ def create_project():
 
     pid = gen_id()
     db = get_db()
-    db.execute("INSERT INTO projects (id, client_id, name, property_address, created_at) VALUES (?,?,?,?,?)",
-               (pid, client_id, name, data.get('property_address','').strip(), now_iso()))
+    db.execute("INSERT INTO projects (id, client_id, name, property_address, catastro, created_at) VALUES (?,?,?,?,?,?)",
+               (pid, client_id, name, data.get('property_address','').strip(), data.get('catastro','').strip(), now_iso()))
 
     # Create tasks from selected items
     tasks = data.get('tasks', [])
@@ -457,8 +460,8 @@ def update_project(pid):
     if not name:
         return jsonify({'error': 'Nombre es requerido'}), 400
     db = get_db()
-    db.execute("UPDATE projects SET name=?, property_address=? WHERE id=?",
-               (name, (data.get('property_address') or '').strip(), pid))
+    db.execute("UPDATE projects SET name=?, property_address=?, catastro=? WHERE id=?",
+               (name, (data.get('property_address') or '').strip(), (data.get('catastro') or '').strip(), pid))
     db.commit()
     return jsonify({'ok': True})
 
@@ -889,7 +892,7 @@ def project_report(pid):
 </div>
 <div class="header">
   <h1>{pr['name']}</h1>
-  <p>{pr.get('property_address','') or 'Sin direccion'}</p>
+  <p>{pr.get('property_address','') or 'Sin dirección'}{(' — Catastro: ' + pr['catastro']) if pr.get('catastro') else ''}</p>
 </div>
 <div class="info-grid">
   <div class="info-box">
@@ -1013,7 +1016,7 @@ def client_report(cid):
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
     <div>
       <h3 style="font-size:16px;margin:0;">{pr['name']}</h3>
-      <p style="font-size:12px;color:#8896A6;margin:2px 0 0 0;">{pr.get('property_address','') or 'Sin dirección'}</p>
+      <p style="font-size:12px;color:#8896A6;margin:2px 0 0 0;">{pr.get('property_address','') or 'Sin dirección'}{(' — Catastro: ' + pr['catastro']) if pr.get('catastro') else ''}</p>
     </div>
     <div style="text-align:right;">
       <span style="font-size:22px;font-weight:700;color:#1565C0;">{pr['pct']}%</span>
