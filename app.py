@@ -10,7 +10,7 @@ Usage:
 The app will be accessible at http://<NAS-IP>:5100 from any device on the LAN.
 """
 
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.1"
 
 import os
 import sqlite3
@@ -94,6 +94,10 @@ def init_db():
             status TEXT NOT NULL DEFAULT 'pending',
             billing_amount INTEGER DEFAULT 0,
             billing_status TEXT NOT NULL DEFAULT 'none',
+            billing_label TEXT DEFAULT '',
+            billing_amount2 INTEGER DEFAULT 0,
+            billing_status2 TEXT NOT NULL DEFAULT 'none',
+            billing_label2 TEXT DEFAULT '',
             sort_order INTEGER DEFAULT 0,
             last_updated_by TEXT DEFAULT '',
             last_updated_at TEXT DEFAULT '',
@@ -144,6 +148,14 @@ def init_db():
         db.execute("ALTER TABLE tasks ADD COLUMN billing_amount INTEGER DEFAULT 0")
     if 'billing_status' not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN billing_status TEXT NOT NULL DEFAULT 'none'")
+    if 'billing_label' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_label TEXT DEFAULT ''")
+    if 'billing_amount2' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_amount2 INTEGER DEFAULT 0")
+    if 'billing_status2' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_status2 TEXT NOT NULL DEFAULT 'none'")
+    if 'billing_label2' not in cols:
+        db.execute("ALTER TABLE tasks ADD COLUMN billing_label2 TEXT DEFAULT ''")
     if 'sort_order' not in cols:
         db.execute("ALTER TABLE tasks ADD COLUMN sort_order INTEGER DEFAULT 0")
     db.commit()
@@ -315,10 +327,13 @@ def get_client(cid):
     # Client billing summary
     billing = db.execute("""
         SELECT
-            COALESCE(SUM(t.billing_amount), 0) as total,
-            COALESCE(SUM(CASE WHEN t.billing_status='none' THEN t.billing_amount ELSE 0 END), 0) as not_billed,
-            COALESCE(SUM(CASE WHEN t.billing_status='invoiced' THEN t.billing_amount ELSE 0 END), 0) as invoiced,
-            COALESCE(SUM(CASE WHEN t.billing_status='paid' THEN t.billing_amount ELSE 0 END), 0) as paid
+            COALESCE(SUM(t.billing_amount), 0) + COALESCE(SUM(t.billing_amount2), 0) as total,
+            COALESCE(SUM(CASE WHEN t.billing_status='none' THEN t.billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN t.billing_status2='none' THEN t.billing_amount2 ELSE 0 END), 0) as not_billed,
+            COALESCE(SUM(CASE WHEN t.billing_status='invoiced' THEN t.billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN t.billing_status2='invoiced' THEN t.billing_amount2 ELSE 0 END), 0) as invoiced,
+            COALESCE(SUM(CASE WHEN t.billing_status='paid' THEN t.billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN t.billing_status2='paid' THEN t.billing_amount2 ELSE 0 END), 0) as paid
         FROM tasks t
         JOIN projects p ON t.project_id = p.id
         WHERE p.client_id=?
@@ -481,17 +496,25 @@ def get_task_history(tid):
 def update_task_billing(tid):
     data = request.json
     db = get_db()
-    old = row_to_dict(db.execute("SELECT billing_amount, billing_status FROM tasks WHERE id=?", (tid,)).fetchone())
+    old = row_to_dict(db.execute("SELECT billing_amount, billing_status, billing_label, billing_amount2, billing_status2, billing_label2 FROM tasks WHERE id=?", (tid,)).fetchone())
     new_amount = int(data.get('billing_amount', 0))
     new_status = data.get('billing_status', 'none')
-    db.execute("UPDATE tasks SET billing_amount=?, billing_status=?, last_updated_by=?, last_updated_at=? WHERE id=?",
-               (new_amount, new_status, g.user['name'], now_iso(), tid))
+    new_label = (data.get('billing_label') or '').strip()
+    new_amount2 = int(data.get('billing_amount2', 0))
+    new_status2 = data.get('billing_status2', 'none')
+    new_label2 = (data.get('billing_label2') or '').strip()
+    db.execute("UPDATE tasks SET billing_amount=?, billing_status=?, billing_label=?, billing_amount2=?, billing_status2=?, billing_label2=?, last_updated_by=?, last_updated_at=? WHERE id=?",
+               (new_amount, new_status, new_label, new_amount2, new_status2, new_label2, g.user['name'], now_iso(), tid))
     billing_labels = {'none':'No Facturado','invoiced':'Facturado-Esperando Pago','paid':'Pagado'}
     details = []
     if old and old['billing_amount'] != new_amount:
-        details.append(f"monto ${old['billing_amount']:,} → ${new_amount:,}")
+        details.append(f"monto1 ${old['billing_amount']:,} → ${new_amount:,}")
     if old and old['billing_status'] != new_status:
-        details.append(f"{billing_labels.get(old['billing_status'],'?')} → {billing_labels.get(new_status,'?')}")
+        details.append(f"status1 {billing_labels.get(old['billing_status'],'?')} → {billing_labels.get(new_status,'?')}")
+    if old and old.get('billing_amount2', 0) != new_amount2:
+        details.append(f"monto2 ${old.get('billing_amount2', 0):,} → ${new_amount2:,}")
+    if old and old.get('billing_status2', 'none') != new_status2:
+        details.append(f"status2 {billing_labels.get(old.get('billing_status2','none'),'?')} → {billing_labels.get(new_status2,'?')}")
     if details:
         task = row_to_dict(db.execute("SELECT name, project_id FROM tasks WHERE id=?", (tid,)).fetchone())
         db.execute("INSERT INTO task_history (id, task_id, user_name, action, detail, created_at) VALUES (?,?,?,?,?,?)",
@@ -673,10 +696,13 @@ def dashboard():
     # Billing summary
     billing = db.execute("""
         SELECT
-            COALESCE(SUM(billing_amount), 0) as total,
-            COALESCE(SUM(CASE WHEN billing_status='none' THEN billing_amount ELSE 0 END), 0) as not_billed,
-            COALESCE(SUM(CASE WHEN billing_status='invoiced' THEN billing_amount ELSE 0 END), 0) as invoiced,
-            COALESCE(SUM(CASE WHEN billing_status='paid' THEN billing_amount ELSE 0 END), 0) as paid
+            COALESCE(SUM(billing_amount), 0) + COALESCE(SUM(billing_amount2), 0) as total,
+            COALESCE(SUM(CASE WHEN billing_status='none' THEN billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN billing_status2='none' THEN billing_amount2 ELSE 0 END), 0) as not_billed,
+            COALESCE(SUM(CASE WHEN billing_status='invoiced' THEN billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN billing_status2='invoiced' THEN billing_amount2 ELSE 0 END), 0) as invoiced,
+            COALESCE(SUM(CASE WHEN billing_status='paid' THEN billing_amount ELSE 0 END), 0)
+              + COALESCE(SUM(CASE WHEN billing_status2='paid' THEN billing_amount2 ELSE 0 END), 0) as paid
         FROM tasks
     """).fetchone()
     stats['billing'] = {
@@ -704,10 +730,13 @@ def project_report(pid):
         t['notes'] = rows_to_list(db.execute("SELECT * FROM notes WHERE task_id=? ORDER BY created_at DESC LIMIT 3", (t['id'],)).fetchall())
     plan_tasks = [t for t in tasks if t['category'] == 'plan']
     permit_tasks = [t for t in tasks if t['category'] == 'permit']
-    total_billing = sum(t.get('billing_amount', 0) for t in tasks)
-    paid = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid')
-    invoiced = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced')
-    not_billed = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none')
+    total_billing = sum(t.get('billing_amount', 0) + t.get('billing_amount2', 0) for t in tasks)
+    paid = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid') + \
+           sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'paid')
+    invoiced = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced') + \
+               sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'invoiced')
+    not_billed = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none') + \
+                 sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'none')
     total = len(tasks)
     done = sum(1 for t in tasks if t['status'] == 'completed')
     pct = round(done / total * 100) if total else 0
@@ -719,6 +748,8 @@ def project_report(pid):
         rows = ''
         for t in task_list:
             sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
+            lbl1 = f' <span style="color:#8896A6;font-size:11px;">({t.get("billing_label","")})</span>' if t.get('billing_label') else ''
+            lbl2 = f' <span style="color:#8896A6;font-size:11px;">({t.get("billing_label2","")})</span>' if t.get('billing_label2') else ''
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
@@ -726,11 +757,13 @@ def project_report(pid):
             rows += f'''<tr>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{t['name']}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
-                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount',0):,}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount',0):,}{lbl1}</td>
                 <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:right;">${t.get('billing_amount2',0):,}{lbl2}</td>
+                <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;">{billing_labels.get(t.get('billing_status2','none'),'?')}</td>
             </tr>'''
             if notes_html:
-                rows += f'<tr><td colspan="4" style="padding:4px 12px 8px 24px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
+                rows += f'<tr><td colspan="6" style="padding:4px 12px 8px 24px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
         return rows
 
     html = f'''<!DOCTYPE html>
@@ -794,14 +827,14 @@ def project_report(pid):
     if plan_tasks:
         html += f'''<div class="section">
   <h2>Planos</h2>
-  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto</th><th>Facturación</th></tr></thead>
+  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto 1</th><th>Facturación 1</th><th style="text-align:right;">Monto 2</th><th>Facturación 2</th></tr></thead>
   <tbody>{task_rows(plan_tasks)}</tbody></table>
 </div>'''
 
     if permit_tasks:
         html += f'''<div class="section permit">
   <h2>Permisos</h2>
-  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto</th><th>Facturación</th></tr></thead>
+  <table><thead><tr><th>Tarea</th><th>Estado</th><th style="text-align:right;">Monto 1</th><th>Facturación 1</th><th style="text-align:right;">Monto 2</th><th>Facturación 2</th></tr></thead>
   <tbody>{task_rows(permit_tasks)}</tbody></table>
 </div>'''
 
@@ -834,10 +867,13 @@ def client_report(cid):
         pr['total'] = total
         pr['done'] = done
         pr['pct'] = round(done / total * 100) if total else 0
-        pr['billing_total'] = sum(t.get('billing_amount', 0) for t in tasks)
-        pr['billing_paid'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid')
-        pr['billing_invoiced'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced')
-        pr['billing_not_billed'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none')
+        pr['billing_total'] = sum(t.get('billing_amount', 0) + t.get('billing_amount2', 0) for t in tasks)
+        pr['billing_paid'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'paid') + \
+                             sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'paid')
+        pr['billing_invoiced'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'invoiced') + \
+                                 sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'invoiced')
+        pr['billing_not_billed'] = sum(t.get('billing_amount', 0) for t in tasks if t.get('billing_status') == 'none') + \
+                                   sum(t.get('billing_amount2', 0) for t in tasks if t.get('billing_status2') == 'none')
         active_projects.append(pr)
 
     # Client-wide billing totals (active projects only)
@@ -853,6 +889,8 @@ def client_report(cid):
         rows = ''
         for t in task_list:
             sc = '#D97706' if t['status'] == 'pending' else '#1565C0' if t['status'] == 'in-progress' else '#16A34A'
+            lbl1 = f' <span style="color:#8896A6;font-size:10px;">({t.get("billing_label","")})</span>' if t.get('billing_label') else ''
+            lbl2 = f' <span style="color:#8896A6;font-size:10px;">({t.get("billing_label2","")})</span>' if t.get('billing_label2') else ''
             notes_html = ''
             for n in t.get('notes', []):
                 ndate = n.get("created_at","")[:10] if n.get("created_at") else ""
@@ -860,11 +898,13 @@ def client_report(cid):
             rows += f'''<tr>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{t['name']}</td>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;"><span style="color:{sc};font-weight:600;">{status_labels.get(t['status'],'?')}</span></td>
-                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount',0):,}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount',0):,}{lbl1}</td>
                 <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status','none'),'?')}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;text-align:right;">${t.get('billing_amount2',0):,}{lbl2}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #E5E7EB;font-size:12px;">{billing_labels.get(t.get('billing_status2','none'),'?')}</td>
             </tr>'''
             if notes_html:
-                rows += f'<tr><td colspan="4" style="padding:2px 10px 6px 20px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
+                rows += f'<tr><td colspan="6" style="padding:2px 10px 6px 20px;border-bottom:1px solid #E5E7EB;">{notes_html}</td></tr>'
         return rows
 
     projects_html = ''
@@ -894,8 +934,10 @@ def client_report(cid):
     <table style="width:100%;border-collapse:collapse;"><thead><tr>
       <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Tarea</th>
       <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Estado</th>
-      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto</th>
-      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact.</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto 1</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact. 1</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto 2</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact. 2</th>
     </tr></thead><tbody>{task_rows(plan_tasks)}</tbody></table></div>'''
         if permit_tasks:
             projects_html += f'''<div>
@@ -903,8 +945,10 @@ def client_report(cid):
     <table style="width:100%;border-collapse:collapse;"><thead><tr>
       <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Tarea</th>
       <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Estado</th>
-      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto</th>
-      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact.</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto 1</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact. 1</th>
+      <th style="text-align:right;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Monto 2</th>
+      <th style="text-align:left;padding:4px 10px;font-size:10px;font-weight:600;text-transform:uppercase;color:#8896A6;border-bottom:1px solid #E5E7EB;">Fact. 2</th>
     </tr></thead><tbody>{task_rows(permit_tasks)}</tbody></table></div>'''
         projects_html += '</div>'
 

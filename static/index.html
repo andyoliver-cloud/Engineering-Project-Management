@@ -42,7 +42,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; font-size: 32px; }
-.version-tag { font-size: 0.5em; color: #fff; font-weight: 400; margin-left: 8px; opacity: 0.9; vertical-align: middle; }
+.version-tag { font-size: 0.75em; color: #fff; font-weight: 400; margin-left: 8px; opacity: 0.9; vertical-align: middle; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
@@ -250,6 +250,12 @@ select {
   color: var(--text); text-align: right;
 }
 .billing-amount-input:focus { outline: none; border-color: var(--border-focus); }
+.billing-label-input {
+  width: 120px; padding: 3px 8px; font-size: 13px; font-family: var(--font);
+  background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text-dim);
+}
+.billing-label-input:focus { outline: none; border-color: var(--border-focus); }
 .reorder-btns { display: flex; flex-direction: column; gap: 1px; margin-left: 4px; }
 .reorder-btn {
   background: none; border: none; color: var(--text-muted); cursor: pointer;
@@ -907,6 +913,10 @@ async function renderProjectDetail() {
 
       const bStatus = t.billing_status || 'none';
       const bAmount = t.billing_amount || 0;
+      const bLabel = t.billing_label || '';
+      const bStatus2 = t.billing_status2 || 'none';
+      const bAmount2 = t.billing_amount2 || 0;
+      const bLabel2 = t.billing_label2 || '';
       html += `<div class="task-item" id="task_${t.id}">
         <div class="task-header">
           <div class="reorder-btns">
@@ -924,13 +934,27 @@ async function renderProjectDetail() {
           </button>
         </div>
         <div class="billing-row">
-          <span style="font-size:14px;color:var(--text-dim);">Monto:</span>
+          <span style="font-size:14px;color:var(--text-dim);">Monto 1:</span>
           <input type="text" class="billing-amount-input" id="ba_${t.id}" value="${bAmount ? '$' + bAmount.toLocaleString('en-US') : ''}" placeholder="$0"
+            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
+          <input type="text" class="billing-label-input" id="bl_${t.id}" value="${esc(bLabel)}" placeholder="Detalle…"
             onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
           <select class="billing-select billing-${bStatus}" id="bs_${t.id}" onchange="saveBilling('${t.id}')">
             <option value="none" ${bStatus==='none'?'selected':''}>No Facturado</option>
             <option value="invoiced" ${bStatus==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
             <option value="paid" ${bStatus==='paid'?'selected':''}>Pagado</option>
+          </select>
+        </div>
+        <div class="billing-row">
+          <span style="font-size:14px;color:var(--text-dim);">Monto 2:</span>
+          <input type="text" class="billing-amount-input" id="ba2_${t.id}" value="${bAmount2 ? '$' + bAmount2.toLocaleString('en-US') : ''}" placeholder="$0"
+            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
+          <input type="text" class="billing-label-input" id="bl2_${t.id}" value="${esc(bLabel2)}" placeholder="Detalle…"
+            onblur="saveBilling('${t.id}')" onkeydown="if(event.key==='Enter'){this.blur();}">
+          <select class="billing-select billing-${bStatus2}" id="bs2_${t.id}" onchange="saveBilling('${t.id}')">
+            <option value="none" ${bStatus2==='none'?'selected':''}>No Facturado</option>
+            <option value="invoiced" ${bStatus2==='invoiced'?'selected':''}>Facturado-Esperando Pago</option>
+            <option value="paid" ${bStatus2==='paid'?'selected':''}>Pagado</option>
           </select>
         </div>
         ${updLabel}
@@ -1027,7 +1051,15 @@ async function saveBilling(taskId) {
   const rawAmount = document.getElementById('ba_' + taskId).value.replace(/[^0-9]/g, '');
   const amount = parseInt(rawAmount) || 0;
   const status = document.getElementById('bs_' + taskId).value;
-  await api(`/api/tasks/${taskId}/billing`, 'PUT', { billing_amount: amount, billing_status: status });
+  const label = document.getElementById('bl_' + taskId).value.trim();
+  const rawAmount2 = document.getElementById('ba2_' + taskId).value.replace(/[^0-9]/g, '');
+  const amount2 = parseInt(rawAmount2) || 0;
+  const status2 = document.getElementById('bs2_' + taskId).value;
+  const label2 = document.getElementById('bl2_' + taskId).value.trim();
+  await api(`/api/tasks/${taskId}/billing`, 'PUT', {
+    billing_amount: amount, billing_status: status, billing_label: label,
+    billing_amount2: amount2, billing_status2: status2, billing_label2: label2
+  });
   renderPage();
 }
 
